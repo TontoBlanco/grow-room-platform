@@ -1,0 +1,25 @@
+services:
+  sensor-service:
+    build: .
+    image: grow-room-platform/sensor-service:local
+    ports:
+      - "8000:8000"
+    environment:
+      SENSOR_SOURCE: ${SENSOR_SOURCE:-simulator}
+      LEAF_TEMP_OFFSET_C: ${LEAF_TEMP_OFFSET_C:-0}
+      HA_URL: ${HA_URL:-}
+      HA_TOKEN: ${HA_TOKEN:-}          # set in .env, never hardcode
+      HA_TEMP_ENTITY: ${HA_TEMP_ENTITY:-sensor.grow_tent_temperature}
+      HA_HUMIDITY_ENTITY: ${HA_HUMIDITY_ENTITY:-sensor.grow_tent_humidity}
+    restart: unless-stopped
+
+  # Optional: run Home Assistant locally to bridge your AC Infinity controller.
+  # Uncomment, start it, open http://localhost:8123, install the AC Infinity
+  # integration via HACS, then set SENSOR_SOURCE=homeassistant in .env.
+  # homeassistant:
+  #   image: ghcr.io/home-assistant/home-assistant:stable
+  #   volumes:
+  #     - ./ha-config:/config
+  #   ports:
+  #     - "8123:8123"
+  #   restart: unless-stopped

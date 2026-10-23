@@ -1,0 +1,37 @@
+[project]
+name = "grow-room-platform"
+version = "0.1.0"
+description = "Grow-room sensor service for controlled-environment agriculture"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Cole Miller" }]
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "httpx>=0.27",
+  "prometheus-client>=0.20",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["sensor_service"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+ignore = ["S104"]  # binding 0.0.0.0 is intended inside a container
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
