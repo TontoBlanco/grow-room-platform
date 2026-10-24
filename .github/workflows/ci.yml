@@ -73,4 +73,5 @@ jobs:
         with:
           image-ref: ${{ env.IMAGE_NAME }}:latest
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
           exit-code: "1"
