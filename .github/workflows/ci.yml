@@ -4,12 +4,27 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 permissions:
   contents: read
-  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/tontoblanco/grow-room-platform
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -17,13 +32,44 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e ".[dev]"
-      - run: ruff check .
-      - run: pytest
+          cache: pip
+      - run: pip install -e '.[dev]'
+      - run: pytest --cov=sensor_service --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+      - uses: actions/upload-artifact@v4
+      with:
+        name: coverage
+        path: coverage.xml
 
   build:
-    needs: test
+    needs: [lint, test]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t grow-room-sensor .
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event.name == 'push'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags:
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+      - uses: docker/build-push-action@v6
+        with:
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          exit-code: "0"
+          severity: CRITICAL_HIGH
+          exit-code: "1"
