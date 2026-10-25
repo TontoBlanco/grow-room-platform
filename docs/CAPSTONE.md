@@ -36,7 +36,7 @@ what I had done.
 | Week 2: Terraform | Network and cluster modules, CI validation, local defaults, example backend configuration |
 | Week 3: Kubernetes and GitOps | k3d, Helm chart, Argo CD app-of-apps, PR-based image-tag updates |
 | Week 4: Monitoring | Prometheus, Grafana Grow-room VPD dashboard, simulator and Home Assistant scrape targets, alerts, two lab SLOs |
-| Week 5: Audit history | Plant/batch API, state-machine transitions, hash-chained SQLite events, integrity check, documentation |
+| Week 5: Audit history | Plant/batch API, state-machine transitions, hash-chained events on SQLite (optional Postgres), integrity check, documentation |
 
 Everything runs locally for the lab. The Kubernetes environment is k3d, not
 EKS. Terraform files are checked in CI, but there is no Terraform plan or
@@ -330,22 +330,37 @@ flowchart TB
   INSERT --> UPDATE["Update current plant state"]
 ```
 
+The default store is SQLite. Setting `AUDIT_DATABASE_URL`, or a postgres
+`DATABASE_URL`, switches the same API to Postgres (`pip install -e
+'.[postgres]'`, or the image, which already includes the driver). Compose can
+start that database locally (`docker-compose.postgres.yml`). The Postgres
+schema is the relational model I would walk through in an interview: `batches`
+and `plants` as current-state projections, `events` as the append-only chain,
+foreign keys with `ON DELETE RESTRICT`, checks on the lifecycle vocabulary,
+and indexes for a plant's history and a batch's plants-by-state. Writers take
+one transaction-scoped advisory lock on the chain tail so two appends cannot
+hash the same previous event. CI runs those tests against a Postgres service
+container. With the URL unset, tests and k3d keep using SQLite and do not need
+a database process.
+
 There are limits here worth being clear about:
 
-- The API rejects event updates, but SQLite is not write-once storage.
-  Someone with database access could rewrite events and recompute the chain.
-  There is no independent signature or external hash anchor.
+- The API rejects event updates, but neither SQLite nor Postgres is write-once
+  storage. Someone with database access could rewrite events and recompute the
+  chain. There is no independent signature or external hash anchor.
 - The `actor` field is recorded, but the project does not implement strong
   identity verification or non-repudiation.
 - The application does not integrate with METRC or any state traceability
   service.
-- Locally, the database defaults to `./data/audit.db`. The container uses
-  `/tmp/audit.db`, backed by `emptyDir` in k3d, so its history disappears
-  when the pod is replaced. The optional PVC example is not deployed.
+- Locally, the database defaults to `./data/audit.db`. The container and the
+  k3d chart still use `/tmp/audit.db` on `emptyDir` unless
+  `AUDIT_DATABASE_URL` is set, so that default history disappears when the pod
+  is replaced. The optional PVC example is not deployed. Optional Postgres is
+  one local database, not RDS and not a multi-node cluster.
 
 This gave me a way to practice state validation, event ordering, and
-integrity checks, while learning where an audit trail stops being credible
-without persistent storage and external trust controls.
+integrity checks, and to see where an audit trail still needs an external
+trust anchor before it is evidence.
 
 [Audit implementation notes](WEEK5_AUDIT_LOG_GUIDE.md) ·
 [Compliance scope and gaps](WEEK5_COMPLIANCE_NOTES.md)
@@ -360,7 +375,8 @@ a much larger project:
 - Running the Home Assistant token inside an Argo-managed pod.
 - METRC, Leaf Data, or another state traceability API.
 - Image signing with Cosign/Sigstore; the current flow is CI → GHCR → PR → Argo.
-- A mounted PVC or durable multi-node audit database.
+- A mounted PVC, RDS, or a multi-node audit database. Optional local Postgres
+  is a single-node relational backend for the same API, not those things.
 - A Raspberry Pi installation beside the tent.
 - SSO, mTLS, WORM storage, external timestamps, or an independently anchored
   audit chain.

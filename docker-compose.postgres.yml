@@ -1,0 +1,36 @@
+# Optional Postgres for the /audit log. The default Compose file stays on
+# SQLite (/tmp/audit.db) and does not start a database.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
+#
+# AUDIT_DATABASE_URL wins over AUDIT_DB_PATH. The password below is a local
+# lab credential for this Compose project, not a production secret. This file
+# does not create RDS or any other cloud database.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: audit
+      POSTGRES_PASSWORD: audit
+      POSTGRES_DB: audit
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audit -d audit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - audit-pg:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  sensor-service:
+    environment:
+      AUDIT_DATABASE_URL: postgresql://audit:audit@postgres:5432/audit
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  audit-pg:

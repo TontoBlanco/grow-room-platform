@@ -75,7 +75,11 @@ probes:
 env:
   SENSOR_SOURCE: simulator
   LEAF_TEMP_OFFSET_C: "0"
-  # Non-root + readOnlyRootFilesystem cannot create ./data. /tmp is an emptyDir.
+  # Non-root + readOnlyRootFilesystem cannot create ./data. /tmp is an emptyDir,
+  # so this file does not survive pod replacement. Leave the Postgres URL unset
+  # on k3d: the chart does not deploy a database, and the lab does not use RDS.
+  # Set AUDIT_DATABASE_URL to a postgres URL only when you already run one
+  # (see docker-compose.postgres.yml). It replaces AUDIT_DB_PATH.
   AUDIT_DB_PATH: /tmp/audit.db
   # Home Assistant path (off by default). When SENSOR_SOURCE=homeassistant,
   # set HA_URL / HA_* entities and inject HA_TOKEN from a Secret (not plain values).

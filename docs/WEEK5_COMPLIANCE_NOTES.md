@@ -86,7 +86,7 @@ Stay on k3d for daily work. Map cloud IAM ideas to what you already touch:
 | Deploy rights | Argo CD reconciles from Git; humans merge PRs | IRSA / workload identity later |
 | App runtime | Sensor Service needs read to HA token (secret) + write to audit DB path | No AWS keys in the Pod |
 | Metrics | Prometheus scrapes `/metrics` only | NetworkPolicy to monitoring ns later |
-| Audit DB | File permissions on PVC/emptyDir; no anonymous write API beyond app | RDS IAM auth is out of scope for $0 week |
+| Audit DB | SQLite file on emptyDir/PVC, or optional local Postgres via `AUDIT_DATABASE_URL` | RDS is out of scope for this $0 lab |
 
 Interview line:
 
@@ -106,9 +106,14 @@ Week 5's `/audit` module supports conversations about:
 - **Non-repudiation (light)** — append-only API surface (405 on mutate)
 - **Disposition** — `destroyed` / `packaged` terminal paths
 
+Postgres, when configured, adds a durable relational model (foreign keys,
+checks, indexes, one writer at a time on the hash chain). It does not add an
+immutable WORM archive, verified actor attribution, or a METRC client. The
+k3d chart still uses SQLite on `emptyDir` unless you set the URL yourself.
+
 Gaps to name out loud (shows maturity): no mutual TLS, no SSO, no WORM bucket,
-no external timestamp authority, SQLite is not multi-node HA. Naming gaps beats
-overclaiming.
+no external timestamp authority, and the optional Postgres is a single local
+database rather than multi-node HA. Naming gaps beats overclaiming.
 
 ---
 

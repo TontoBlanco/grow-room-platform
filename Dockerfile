@@ -8,7 +8,9 @@ WORKDIR /app
 # Install dependencies first so this layer caches between code changes
 COPY pyproject.toml README.md ./
 COPY sensor_service ./sensor_service
-RUN pip install . && useradd --create-home --uid 10001 appuser
+# postgres extra lets AUDIT_DATABASE_URL work. SQLite stays the default when
+# that variable is unset, including the k3d chart.
+RUN pip install ".[postgres]" && useradd --create-home --uid 10001 appuser
 
 USER appuser
 EXPOSE 8000

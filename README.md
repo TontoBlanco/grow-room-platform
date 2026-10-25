@@ -290,13 +290,33 @@ curl -s localhost:8000/audit/batches -X POST -H 'content-type: application/json'
   -d '{"name":"tent-a","strain":"demo"}'
 ```
 
-By default the local database is `./data/audit.db`. Docker Compose and the
-Helm chart use `/tmp/audit.db` so the non-root container can write to it. In
-k3d, that database is on an `emptyDir` and **does not survive replacement of
-the pod**. There is an example PVC at
+By default the local database is `./data/audit.db` (SQLite, no extra service).
+Docker Compose and the Helm chart use `/tmp/audit.db` so the non-root container
+can write to it. In k3d, that database is on an `emptyDir` and **does not
+survive replacement of the pod**. There is an example PVC at
 `charts/snippets/audit-sqlite-pvc.yaml`, but it is not wired into the chart.
-The hash chain is useful for learning and checking consistency; it is not
-immutable storage or proof of who performed an action.
+
+Postgres is optional. Set `AUDIT_DATABASE_URL` (or a `postgres://` /
+`postgresql://` `DATABASE_URL`) and install the extra with
+`pip install -e '.[postgres]'`. `AUDIT_DATABASE_URL` wins when both are set.
+A non-postgres `DATABASE_URL` is ignored and the store stays on SQLite.
+The image already includes the driver. Local Compose:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
+```
+
+That starts one Postgres 16 container and points the API at
+`postgresql://audit:audit@postgres:5432/audit` (a local lab password). CI runs
+the same checks against a Postgres service container. k3d/Helm stay on SQLite
+unless you set the URL yourself. Nothing here provisions RDS.
+
+Postgres adds a durable relational model: batches, plants, and events with
+foreign keys, state checks, and indexes for plant history and batch lookups.
+It still does not prove an immutable WORM archive, verified actor attribution,
+or METRC connectivity. The hash chain detects a rewritten row. Someone who can
+write the database can still rewrite a row and recompute the chain. The
+`actor` field is recorded, not authenticated.
 
 See the [audit guide](docs/WEEK5_AUDIT_LOG_GUIDE.md) and
 [compliance notes](docs/WEEK5_COMPLIANCE_NOTES.md).
@@ -310,9 +330,10 @@ token automount disabled.
 
 Those settings are a starting point for learning container hardening. This
 project has no ATO, STIG assessment, FedRAMP authorization, production EKS
-cluster, external state traceability integration, or durable multi-node audit
-store. I would rather show exactly what I implemented than claim controls I
-didn't test.
+cluster, or external state traceability integration. Audit storage is SQLite
+by default. Optional Postgres is a single local database, not multi-node HA,
+not WORM storage, and not RDS. I would rather show exactly what I implemented
+than claim controls I didn't test.
 
 ## Repository layout
 

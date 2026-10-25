@@ -14,6 +14,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5"]
+postgres = ["psycopg[binary]>=3.2"]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -35,3 +36,6 @@ ignore = ["S104"]  # binding 0.0.0.0 is intended inside a container
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "postgres: audit tests that need AUDIT_TEST_DATABASE_URL (skipped otherwise)",
+]

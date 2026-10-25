@@ -50,4 +50,5 @@ curl -s localhost:8000/docs   # look for the "audit" tag
 
 `pyproject.toml` already lists `packages = ["sensor_service"]`. Setuptools will
 pick up the new `sensor_service/audit/` subpackage automatically as long as
-`audit/__init__.py` exists. No new third-party dependencies — SQLite is stdlib.
+`audit/__init__.py` exists. SQLite uses the stdlib. Postgres is optional:
+`pip install -e '.[postgres]'` and `AUDIT_DATABASE_URL`.
