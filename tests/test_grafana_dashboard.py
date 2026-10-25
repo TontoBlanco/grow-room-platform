@@ -116,21 +116,103 @@ def test_original_vpd_panels_keep_their_queries_and_layout():
         assert panels[panel_id]["gridPos"] == grid
 
 
+def _ha(metric: str) -> str:
+    """One Home Assistant series, ignoring pod/instance/job cardinality."""
+    return f'max by (sensor_source) ({metric}{{sensor_source="homeassistant"}})'
+
+
+def _ha_device(metric: str) -> str:
+    """One series per UIS device on the Home Assistant scrape."""
+    return f'max by (device) ({metric}{{sensor_source="homeassistant"}})'
+
+
 def test_garden_panels_cover_probe_controller_and_ports():
     panels = {panel["id"]: panel for panel in _dashboard()["panels"]}
-    assert panels[15]["targets"][0]["expr"] == "grow_temperature_celsius"
-    assert panels[15]["targets"][1]["expr"] == "grow_probe_temperature_celsius"
-    assert panels[16]["targets"][1]["expr"] == "grow_probe_humidity_percent"
-    assert [target["expr"] for target in panels[17]["targets"]] == [
-        "grow_vpd_kpa",
-        "grow_controller_vpd_kpa",
-        "grow_probe_vpd_kpa",
+    assert [(t["expr"], t["legendFormat"]) for t in panels[15]["targets"]] == [
+        (_ha("grow_temperature_celsius"), "controller air"),
+        (_ha("grow_probe_temperature_celsius"), "probe canopy"),
     ]
-    assert panels[10]["targets"][0]["expr"] == "grow_controller_status"
-    assert panels[19]["targets"][0]["expr"] == "grow_port_status"
-    assert panels[19]["targets"][0]["legendFormat"] == "{{device}}"
-    assert panels[20]["targets"][0]["expr"] == "grow_port_current_power"
-    assert panels[22]["targets"][0]["legendFormat"] == "{{device}}"
+    assert [(t["expr"], t["legendFormat"]) for t in panels[16]["targets"]] == [
+        (_ha("grow_humidity_percent"), "controller air"),
+        (_ha("grow_probe_humidity_percent"), "probe canopy"),
+    ]
+    assert [(t["expr"], t["legendFormat"]) for t in panels[17]["targets"]] == [
+        (_ha("grow_vpd_kpa"), "computed leaf"),
+        (_ha("grow_controller_vpd_kpa"), "controller"),
+        (_ha("grow_probe_vpd_kpa"), "probe canopy"),
+    ]
+    for panel_id in (15, 16, 17):
+        names = [target["legendFormat"] for target in panels[panel_id]["targets"]]
+        assert len(names) == len(set(names))
+        assert all("{{" not in name for name in names)
+    assert panels[10]["targets"][0]["expr"] == _ha("grow_controller_status")
+    assert panels[11]["targets"][0]["expr"] == _ha("grow_controller_vpd_kpa")
+    assert panels[12]["targets"][0]["expr"] == _ha("grow_probe_temperature_celsius")
+    assert panels[13]["targets"][0]["expr"] == _ha("grow_probe_humidity_percent")
+    assert panels[14]["targets"][0]["expr"] == _ha("grow_probe_vpd_kpa")
+    for panel_id in (19, 21):
+        target = panels[panel_id]["targets"][0]
+        assert target["expr"] == _ha_device("grow_port_status")
+        assert target["legendFormat"] == "{{device}}"
+    for panel_id in (20, 22):
+        target = panels[panel_id]["targets"][0]
+        assert target["expr"] == _ha_device("grow_port_current_power")
+        assert target["legendFormat"] == "{{device}}"
+
+
+def _series_after_max_by(
+    series: list[dict[str, str]],
+    by: tuple[str, ...],
+    selector: dict[str, str],
+) -> list[dict[str, str]]:
+    """Collapse label sets the way `max by (...) (metric{selector})` does."""
+    matched = [sample for sample in series if all(sample.get(k) == v for k, v in selector.items())]
+    grouped: dict[tuple[str, ...], dict[str, str]] = {}
+    for sample in matched:
+        key = tuple(sample.get(label, "") for label in by)
+        grouped[key] = {label: sample.get(label, "") for label in by}
+    return list(grouped.values())
+
+
+def test_homeassistant_aggregation_drops_simulator_pod_history():
+    # grow_temperature_celsius is exported by every rolled simulator pod and by
+    # the Compose scrape. A fixed legendFormat repeats once per series.
+    climate = [
+        {"job": "sensor-service", "instance": "10.0.0.1:8000", "pod": "sensor-service-aaa"},
+        {"job": "sensor-service", "instance": "10.0.0.2:8000", "pod": "sensor-service-bbb"},
+        {"job": "sensor-service", "instance": "10.0.0.3:8000", "pod": "sensor-service-ccc"},
+        {
+            "job": "grow-room-ha-host",
+            "instance": "docker-compose-sensor-service",
+            "sensor_source": "homeassistant",
+        },
+    ]
+    assert _series_after_max_by(
+        climate, ("sensor_source",), {"sensor_source": "homeassistant"}
+    ) == [{"sensor_source": "homeassistant"}]
+
+    ports = [
+        {
+            "device": "port_1",
+            "sensor_source": "homeassistant",
+            "instance": "docker-compose-sensor-service",
+            "job": "grow-room-ha-host",
+        },
+        {
+            "device": "humidifier",
+            "sensor_source": "homeassistant",
+            "instance": "docker-compose-sensor-service",
+            "job": "grow-room-ha-host",
+        },
+        {
+            "device": "port_1",
+            "sensor_source": "homeassistant",
+            "instance": "10.0.0.9:8000",
+            "job": "other",
+        },
+    ]
+    collapsed = _series_after_max_by(ports, ("device",), {"sensor_source": "homeassistant"})
+    assert sorted(sample["device"] for sample in collapsed) == ["humidifier", "port_1"]
 
 
 def test_panels_do_not_overlap():
