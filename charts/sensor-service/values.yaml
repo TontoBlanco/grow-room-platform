@@ -6,7 +6,7 @@ replicaCount: 1
 image:
   repository: ghcr.io/tontoblanco/grow-room-platform
   # Prefer an immutable tag (git SHA) in GitOps; "latest" is fine for first local smoke.
-  tag: "sha-0fbe50e"
+  tag: "sha-bba8f77"
   pullPolicy: IfNotPresent
 
 # Leave empty for public GHCR packages. For private packages, create a
