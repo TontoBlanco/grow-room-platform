@@ -133,11 +133,13 @@ podAnnotations:
 The **old** standalone Prometheus Helm chart could scrape those annotations
 via kubernetes_sd + relabel. **kube-prometheus-stack** (operator-based) prefers
 **ServiceMonitor** / **PodMonitor** CRs. Annotations alone will **not** make
-targets appear unless you add `additionalScrapeConfigs` (commented example in
-`monitoring/values-k3d.yaml`).
+targets appear. `prometheus.prometheusSpec.additionalScrapeConfigs` in
+`monitoring/values-k3d.yaml` is a single static job for the Docker Compose
+Home Assistant sensor on the host (Step 4e). It does not turn on
+annotation-based pod discovery.
 
-This pack ships a ServiceMonitor. Keep the annotations anyway — they document
-intent and help other tools.
+This pack ships a ServiceMonitor for the in-cluster service. Keep the
+annotations anyway — they document intent and help other tools.
 
 ### Key differences from "just kubectl port-forward and curl"
 
@@ -154,7 +156,7 @@ intent and help other tools.
 
 1. Copy files; dry-run manifests; optional `helm template` (Step 0).
 2. Merge Application + kustomization; push; wait for Argo sync (Steps 2–3).
-3. Confirm Prometheus targets include sensor-service (Step 4).
+3. Confirm Prometheus targets include sensor-service, and `grow-room-ha-host` when Compose is serving Home Assistant (Step 4).
 4. Open Grafana; confirm VPD dashboard (Step 5).
 5. Fire a test alert (Step 6).
 6. Write / review SLOs + runbook (Step 7).
@@ -167,7 +169,7 @@ intent and help other tools.
 | File | Role |
 |------|------|
 | `gitops/apps/monitoring.yaml` | Argo Application (multi-source Helm + manifests) |
-| `monitoring/values-k3d.yaml` | Helm values for kube-prometheus-stack on small k3d |
+| `monitoring/values-k3d.yaml` | Helm values for kube-prometheus-stack on small k3d, including the `grow-room-ha-host` scrape of Compose on the Docker host |
 | `monitoring/manifests/sensor-servicemonitor.yaml` | Scrape grow-room Service |
 | `monitoring/manifests/grow-room-prometheusrule.yaml` | Alert rules |
 | `monitoring/manifests/grafana-dashboard-grow-room-vpd.yaml` | Dashboard ConfigMap for Grafana sidecar |
@@ -300,6 +302,150 @@ job name still matches the climate panels.
 | Prometheus picks all ServiceMonitors | `serviceMonitorSelectorNilUsesHelmValues: false` in values |
 | App serving on port `http` | Service port name must be `http` (Week 3 chart) |
 
+### 4e. Scrape the Compose Home Assistant sensor (host port 8000)
+
+The ServiceMonitor in Step 4c scrapes the **in-cluster** sensor. That Deployment
+defaults to `SENSOR_SOURCE=simulator`, which does not export
+`grow_probe_*`, `grow_controller_*`, or `grow_port_*`. The live tent series
+are on the Docker Compose `sensor-service` (`SENSOR_SOURCE=homeassistant`),
+published on the host at port 8000. Grafana panels that say **No HA sample**
+are waiting on those series.
+
+`monitoring/values-k3d.yaml` adds a static job under
+`prometheus.prometheusSpec.additionalScrapeConfigs` (kube-prometheus-stack
+92.13.1 renders that list into Secret
+`monitoring-prometheus-scrape-confg`, key `additional-scrape-configs.yaml` —
+the chart's secret name really ends in `confg`). The job is:
+
+| Label | Value | Why |
+|-------|--------|-----|
+| `job` | `grow-room-ha-host` | `job_name`. Distinct from the in-cluster ServiceMonitor (`job="sensor-service"` or a `serviceMonitor/...` prefix). |
+| `instance` | `docker-compose-sensor-service` | Set on the static target so the series is not a pod IP. |
+| `sensor_source` | `homeassistant` | Extra target label. The simulator scrape does not have it. |
+
+Target: `host.k3d.internal:8000` `/metrics`.
+
+**Why that hostname.** k3d, since v3.1.0, injects `host.k3d.internal` into the
+k3s node `/etc/hosts` **and** into CoreDNS (`NodeHosts` / `coredns-custom`),
+so pods resolve it to the k3d Docker-network gateway. That is the documented
+way to reach a service on the Docker host from inside the cluster
+([k3d FAQ](https://k3d.io/v5.9.0/faq/faq/),
+[CoreDNS in k3d](https://k3d.io/stable/usage/k3s/)).
+`scripts/bootstrap-k3d.sh` uses a default `k3d cluster create`, which keeps
+that injection. `host.docker.internal` is **not** that mechanism: Docker
+Desktop adds it for containers it creates, and k3d does not put it in
+CoreDNS. It is a fallback only when a lookup inside the Prometheus pod
+succeeds (see below).
+
+#### Host process must already be serving HA metrics
+
+```bash
+# .env is gitignored. SENSOR_SOURCE=homeassistant and HA_TOKEN live there.
+docker compose up -d sensor-service
+curl -sS http://127.0.0.1:8000/metrics | grep -E 'grow_probe_|grow_controller_|grow_port_'
+```
+
+`docker-compose.yml` publishes `"8000:8000"` (all host interfaces). Leave it
+that way. `127.0.0.1:8000:8000` answers this curl and refuses the k3d
+gateway, because `host.k3d.internal` is the bridge gateway, not loopback.
+On Docker Desktop, `host.docker.internal` sometimes *can* reach a
+loopback-only publish; still prefer the all-interfaces publish plus
+`host.k3d.internal`.
+
+Nothing in the scrape config is a secret. Do not put `HA_TOKEN` in
+`values-k3d.yaml`.
+
+#### Sync (Argo reads Git, not your working tree)
+
+The `monitoring` Application loads values from this repo at `targetRevision:
+HEAD` (`gitops/apps/monitoring.yaml`, the `$values` source). Auto-sync runs
+after that revision contains `monitoring/values-k3d.yaml`. Push to the
+default branch, then hard-refresh if the secret does not show up:
+
+```bash
+kubectl -n argocd annotate application monitoring \
+  argocd.argoproj.io/refresh=hard --overwrite
+
+kubectl -n argocd get application monitoring
+# Sync: Synced, Health: Healthy (Progressing for a bit is normal)
+
+kubectl -n monitoring get secret monitoring-prometheus-scrape-confg \
+  -o go-template='{{index .data "additional-scrape-configs.yaml" | base64decode}}'
+# expect job_name: grow-room-ha-host and host.k3d.internal:8000
+```
+
+The operator's config-reloader reloads Prometheus when that Secret's data
+changes. The StatefulSet spec often stays the same, so `rollout status` can
+already look ready. Wait one scrape interval (30s). If the new target never
+appears, restart Prometheus:
+
+```bash
+kubectl -n monitoring delete pod -l operator.prometheus.io/name=monitoring-prometheus
+```
+
+Optional preview before merge: point the `$values` source `targetRevision`
+at your branch and refresh `monitoring`. `grow-room-root` self-heal writes
+that field back to `HEAD` from `gitops/apps/monitoring.yaml`, so the preview
+lasts until the next root sync. Merging is the path that sticks.
+
+Helm-only (no Argo), from a machine that already has the chart repo:
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  --version 92.13.1 \
+  -n monitoring --create-namespace \
+  -f monitoring/values-k3d.yaml
+```
+
+Still apply `monitoring/manifests/` yourself if you skip Argo. The host scrape
+is the values file. The ServiceMonitor for the in-cluster Service stays in
+`monitoring/manifests/`.
+
+#### Targets UI
+
+```bash
+kubectl -n monitoring port-forward svc/monitoring-prometheus 9090:9090
+```
+
+Open `http://127.0.0.1:9090/targets`. Find **grow-room-ha-host**. The endpoint
+is `http://host.k3d.internal:8000/metrics`. State should be **UP**, with
+labels `instance="docker-compose-sensor-service"` and
+`sensor_source="homeassistant"`. The in-cluster ServiceMonitor target stays
+listed separately; a DOWN host job does not by itself mark that one DOWN.
+
+PromQL (Graph):
+
+```promql
+up{job="grow-room-ha-host"}
+grow_probe_temperature_celsius{job="grow-room-ha-host"}
+grow_probe_humidity_percent{job="grow-room-ha-host"}
+grow_probe_vpd_kpa{job="grow-room-ha-host"}
+grow_controller_vpd_kpa{job="grow-room-ha-host"}
+grow_controller_status{job="grow-room-ha-host"}
+grow_port_current_power{job="grow-room-ha-host"}
+grow_port_status{job="grow-room-ha-host"}
+```
+
+`up{job="grow-room-ha-host"} == 1` and at least one `grow_probe_*` series means
+the scrape landed. Dashboard queries for those gauges do not filter on `job`,
+so the same series fills the HA panels. Filter `job="grow-room-ha-host"` or
+`sensor_source="homeassistant"` when a panel should ignore the simulator.
+`grow_temperature_celsius` (and humidity / computed VPD) exist on **both**
+jobs; an unfiltered top-row panel can show two series. SLO 1 stays on
+`job="sensor-service"` — the Compose job is not that indicator.
+
+#### If grow-room-ha-host is DOWN
+
+| What you see | What to try |
+|--------------|-------------|
+| `no such host` / DNS error | `kubectl -n kube-system get cm coredns -o yaml` and look for `host.k3d.internal`. Missing on a cluster created with host-IP injection disabled, or CoreDNS not reloaded. Fallback target: the gateway IP from `docker network inspect k3d-grow-room-dev` (IPAM `Gateway`), or `host.docker.internal` **only if** `nslookup host.docker.internal` works in the Prometheus pod. |
+| Connection refused | Compose not running, or port bound to `127.0.0.1` only. `curl http://127.0.0.1:8000/metrics` on the host, then confirm the publish is `8000:8000`. |
+| Timeout | Host firewall dropping the k3d bridge. Same fallbacks as DNS; the gateway IP does not skip a firewall that blocks the bridge. |
+| UP but no `grow_probe_*` | Process is the simulator. `SENSOR_SOURCE=homeassistant` in `.env`, recreate the compose container, curl `/metrics` again. |
+| Secret missing after refresh | Values revision Argo is tracking does not contain this file yet. `kubectl -n argocd get application monitoring -o yaml` and check the `$values` `targetRevision`. |
+
 ---
 
 ## Step 5: Grafana VPD dashboard
@@ -329,7 +475,10 @@ Further down:
 
 Those Home Assistant gauges are created on the first real sample. On the
 simulator the new panels say **No HA sample**. That empty state is expected
-until Prometheus has scraped `SENSOR_SOURCE=homeassistant`.
+until Prometheus has scraped the Compose service (`SENSOR_SOURCE=homeassistant`
+on host port 8000) via the `grow-room-ha-host` job in Step 4e. After that
+target is **UP** for one interval, refresh this dashboard: the probe, controller,
+and port panels should show numbers instead of **No HA sample**.
 
 ### Reload after the dashboard JSON changes
 
@@ -455,7 +604,8 @@ Do not point this Application at EKS until you deliberately accept cloud cost.
 - [ ] `gitops/apps/kustomization.yaml` lists `monitoring.yaml`
 - [ ] Argo Application `monitoring` is Synced / Healthy (or progressing then Healthy)
 - [ ] Prometheus `/targets` shows sensor-service **UP**
-- [ ] Grafana shows **Grow-room VPD** with live temp / humidity / VPD (probe and port panels fill in after a Home Assistant scrape)
+- [ ] Prometheus `/targets` shows `grow-room-ha-host` **UP** while Compose serves `SENSOR_SOURCE=homeassistant` on port 8000
+- [ ] Grafana shows **Grow-room VPD** with live temp / humidity / VPD (probe and port panels leave **No HA sample** after the host scrape)
 - [ ] At least one alert proven to fire and resolve (scrape down or humidity test)
 - [ ] Two SLOs + scrape-down runbook reviewed (`monitoring/docs-slo.md`)
 - [ ] README roadmap Week 4 checkbox updated
@@ -478,7 +628,7 @@ Week 5 is hardening, docs polish, and Terraform Associate prep.
 | Target DOWN | Pod not Ready / wrong port name | `kubectl -n grow-room get endpoints`; port must be named `http` |
 | Dashboard missing in Grafana | ConfigMap label / sidecar | Label `grafana_dashboard=1`; check sidecar logs; import JSON manually |
 | Dashboard still shows only the original panels | ConfigMap on the cluster is the old revision, or Grafana has not reloaded it | `grep grow_probe_temperature_celsius` on the ConfigMap (Step 5). Restart `deploy/monitoring-grafana`, or import `monitoring/dashboards/grow-room-vpd.json` over uid `grow-room-vpd` |
-| Probe / port panels say "No HA sample" | Simulator, or Prometheus has not scraped an HA sample yet | `SENSOR_SOURCE=homeassistant`, then confirm the `grow_probe_*` / `grow_port_*` series in Prometheus. Empty is expected before that |
+| Probe / port panels say "No HA sample" | Only the in-cluster simulator is scraped, or the host job is DOWN | Step 4e: Compose `SENSOR_SOURCE=homeassistant` on `0.0.0.0:8000`, Argo synced, Targets UI job `grow-room-ha-host` **UP**, then `grow_probe_*{job="grow-room-ha-host"}` returns a series. Empty is expected before that |
 | Alerts never fire | Wrong `job` label / `for:` not elapsed | Match labels from `/targets`; wait out `for:` |
 | Scale test snapped back | Argo self-heal | Pause sync or test via PromQL/Git change |
 | `helm template` huge / slow | Expected for this chart | Redirect to a file; do not commit rendered YAML |

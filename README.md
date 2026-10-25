@@ -72,14 +72,40 @@ kube-prometheus-stack under [`monitoring/`](monitoring/) + Argo Application
 
 | Path | Purpose |
 |------|---------|
-| `monitoring/values-k3d.yaml` | Small-footprint Helm values for k3d |
+| `monitoring/values-k3d.yaml` | Small-footprint Helm values for k3d, plus a static scrape of the Compose Home Assistant sensor |
 | `monitoring/manifests/` | ServiceMonitor, PrometheusRule, Grafana dashboard ConfigMap |
 | `monitoring/dashboards/grow-room-vpd.json` | Temp / humidity / computed VPD / scrape health, plus controller, probe canopy, and port panels |
 | `monitoring/docs-slo.md` | Ingest availability + data freshness SLOs; scrape-down runbook |
 
-Prometheus scrapes the sensor Service via a **ServiceMonitor** (operator-native).
-Pod `prometheus.io/*` annotations from Week 3 remain as documentation. Daily lab
-work stays on **k3d** (no AWS cost).
+Prometheus scrapes the in-cluster sensor Service via a **ServiceMonitor**
+(operator-native). That pod stays on the simulator. Pod `prometheus.io/*`
+annotations from Week 3 remain as documentation. Daily lab work stays on
+**k3d** (no AWS cost).
+
+The Compose sensor (`SENSOR_SOURCE=homeassistant`, host port 8000) is a second
+scrape: `prometheus.prometheusSpec.additionalScrapeConfigs` job
+`grow-room-ha-host` targets `host.k3d.internal:8000/metrics`
+(`instance="docker-compose-sensor-service"`, `sensor_source="homeassistant"`).
+k3d injects `host.k3d.internal` into CoreDNS so cluster pods can reach the
+Docker host ([k3d FAQ](https://k3d.io/v5.9.0/faq/faq/)). If that name does not
+resolve, the same values file comments list `host.docker.internal` (only when
+the Prometheus pod can resolve it) and the k3d network gateway IP. No tokens
+go in the values file.
+
+After that values file is on the revision Argo tracks (`HEAD`):
+
+```bash
+kubectl -n argocd annotate application monitoring \
+  argocd.argoproj.io/refresh=hard --overwrite
+kubectl -n monitoring port-forward svc/monitoring-prometheus 9090:9090
+```
+
+In the Prometheus Targets UI (`http://127.0.0.1:9090/targets`), job
+`grow-room-ha-host` should be **UP**. Then
+`grow_probe_temperature_celsius{job="grow-room-ha-host"}` returns a series and
+the Grow-room VPD probe / controller / port panels leave **No HA sample**.
+Sync, fallbacks, and the secret name are in
+[docs/WEEK4_OBSERVABILITY_GUIDE.md](docs/WEEK4_OBSERVABILITY_GUIDE.md) Step 4e.
 
 ### Reload the Grow-room VPD dashboard
 
@@ -91,7 +117,7 @@ gauges the service exports after a Home Assistant sample:
 `grow_probe_temperature_celsius`, `grow_probe_humidity_percent`,
 `grow_probe_vpd_kpa`, `grow_port_current_power`, and `grow_port_status`
 (label `device`). The simulator does not publish those series, so those panels
-stay empty until Prometheus scrapes `SENSOR_SOURCE=homeassistant`.
+stay empty until the `grow-room-ha-host` scrape above is **UP**.
 
 Git is the ConfigMap `monitoring/manifests/grafana-dashboard-grow-room-vpd.yaml`
 (same JSON as `monitoring/dashboards/grow-room-vpd.json`). On k3d, after that

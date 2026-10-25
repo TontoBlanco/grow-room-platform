@@ -85,6 +85,48 @@ prometheus:
         cpu: "1"
         memory: 768Mi
     storageSpec: {}  # emptyDir via default; fine for disposable k3d
+    # Static scrape of the Docker Compose sensor-service on the host
+    # (SENSOR_SOURCE=homeassistant, published on port 8000). The in-cluster
+    # chart stays on the simulator and does not export grow_probe_* /
+    # grow_controller_* / grow_port_*, so Grafana's "No HA sample" panels
+    # stay empty until this job is UP.
+    #
+    # host.k3d.internal is the k3d name for the Docker host. Since k3d
+    # v3.1.0 it is injected into the k3s node /etc/hosts and into CoreDNS
+    # (NodeHosts / coredns-custom), so pods — including Prometheus — resolve
+    # it to the k3d network gateway:
+    #   https://k3d.io/v5.9.0/faq/faq/  (host services from inside the cluster)
+    #   https://k3d.io/stable/usage/k3s/ (CoreDNS in k3d)
+    # scripts/bootstrap-k3d.sh does not disable that injection.
+    #
+    # If the target stays DOWN, change the single target below (do not add a
+    # second `prometheus:` key — YAML would drop this block):
+    # - host.docker.internal:8000 — Docker Desktop's host alias. k3d does not
+    #   put it in CoreDNS. Use it only after `nslookup host.docker.internal`
+    #   succeeds inside the Prometheus pod. On Docker Desktop it can reach a
+    #   port published on 127.0.0.1; host.k3d.internal cannot, because that
+    #   name is the bridge gateway, not loopback.
+    # - <gateway>:8000 — same address host.k3d.internal should resolve to,
+    #   when DNS itself is broken. `docker network inspect k3d-grow-room-dev`
+    #   IPAM Gateway, or the A record in the kube-system coredns ConfigMap.
+    # Compose must publish `8000:8000` (all interfaces). `127.0.0.1:8000:8000`
+    # is reachable from the host curl, and not from the k3d gateway.
+    #
+    # job=grow-room-ha-host, instance=docker-compose-sensor-service, and
+    # sensor_source=homeassistant keep these series off the in-cluster
+    # ServiceMonitor (job usually sensor-service, instance = pod IP).
+    # No tokens in this file. HA_TOKEN stays in the gitignored .env.
+    additionalScrapeConfigs:
+      - job_name: grow-room-ha-host
+        metrics_path: /metrics
+        scrape_interval: 30s
+        scrape_timeout: 10s
+        static_configs:
+          - targets:
+              - host.k3d.internal:8000
+            labels:
+              instance: docker-compose-sensor-service
+              sensor_source: homeassistant
 
 # k3d often cannot scrape these securely / they do not exist — turn off to cut noise.
 kubeApiServer:
@@ -112,26 +154,7 @@ kube-state-metrics:
       cpu: 200m
       memory: 128Mi
 
-# Optional: classic annotation-based scrape as a teaching fallback.
-# Prefer the ServiceMonitor in monitoring/manifests/ (operator-native).
-# Uncomment if you want prometheus.io/* annotations alone to work:
-#
-# prometheus:
-#   prometheusSpec:
-#     additionalScrapeConfigs:
-#       - job_name: kubernetes-pods-annotations
-#         kubernetes_sd_configs:
-#           - role: pod
-#         relabel_configs:
-#           - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-#             action: keep
-#             regex: true
-#           - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-#             action: replace
-#             target_label: __metrics_path__
-#             regex: (.+)
-#           - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-#             action: replace
-#             regex: ([^:]+)(?::\d+)?;(\d+)
-#             replacement: $1:$2
-#             target_label: __address__
+# Annotation-based pod discovery is not enabled. kube-prometheus-stack scrapes
+# ServiceMonitors (monitoring/manifests/sensor-servicemonitor.yaml) plus the
+# static grow-room-ha-host job under prometheus.prometheusSpec above.
+# A second top-level `prometheus:` key in this file overrides the real spec.
