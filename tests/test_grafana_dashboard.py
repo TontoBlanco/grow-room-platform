@@ -26,10 +26,12 @@ EXPORTED = {
 }
 
 ORIGINAL_GRIDS = {
-    1: {"h": 4, "w": 4, "x": 0, "y": 0},
-    2: {"h": 4, "w": 5, "x": 4, "y": 0},
-    3: {"h": 4, "w": 5, "x": 9, "y": 0},
-    4: {"h": 4, "w": 5, "x": 14, "y": 0},
+    # Scrape up is wide enough for one tile per job (sensor-service and
+    # grow-room-ha-host). Climate stats keep their size and slide right.
+    1: {"h": 4, "w": 9, "x": 0, "y": 0},
+    2: {"h": 4, "w": 5, "x": 9, "y": 0},
+    3: {"h": 4, "w": 5, "x": 14, "y": 0},
+    4: {"h": 4, "w": 5, "x": 19, "y": 0},
     5: {"h": 10, "w": 16, "x": 0, "y": 4},
     6: {"h": 10, "w": 8, "x": 16, "y": 4},
     7: {"h": 8, "w": 24, "x": 0, "y": 14},
@@ -108,12 +110,54 @@ def test_original_vpd_panels_keep_their_queries_and_layout():
         "grow_vpd_kpa",
     ]
     assert [target["expr"] for target in panels[6]["targets"]] == [
-        'up{job="sensor-service"}',
-        "rate(grow_read_errors[5m])",
+        'max by (job) (up{job=~"sensor-service|grow-room-ha-host"})',
+        "sum by (job) (rate(grow_read_errors[5m]))",
     ]
     assert [target["expr"] for target in panels[7]["targets"]] == ["grow_co2_ppm"]
     for panel_id, grid in ORIGINAL_GRIDS.items():
         assert panels[panel_id]["gridPos"] == grid
+
+
+def test_scrape_panels_collapse_rolled_instances_to_one_series_per_job():
+    """A dead pod IP must not remain its own Scrape up tile or legend row."""
+    panels = {panel["id"]: panel for panel in _dashboard()["panels"]}
+    collapsed_up = 'max by (job) (up{job=~"sensor-service|grow-room-ha-host"})'
+    for panel_id in (1, 6):
+        target = panels[panel_id]["targets"][0]
+        assert target["expr"] == collapsed_up
+        assert target["legendFormat"] == "{{job}}"
+        assert "instance" not in target["expr"]
+        assert "pod" not in target["expr"]
+    assert panels[6]["targets"][1]["expr"] == "sum by (job) (rate(grow_read_errors[5m]))"
+    assert panels[6]["targets"][1]["legendFormat"] == "read_errors/s {{job}}"
+
+    # The live pod, the rolled pod from the k3d diagnosis, and the Compose HA
+    # target. max by (job) keeps one series per job and drops the pod IP.
+    rolled = [
+        {
+            "job": "sensor-service",
+            "instance": "10.42.2.13:8000",
+            "pod": "sensor-service-68ffc755b5-lgcjt",
+        },
+        {
+            "job": "sensor-service",
+            "instance": "10.42.2.14:8000",
+            "pod": "sensor-service-current",
+        },
+        {
+            "job": "grow-room-ha-host",
+            "instance": "docker-compose-sensor-service",
+        },
+        {"job": "kubelet", "instance": "node:10250"},
+    ]
+    jobs = {"sensor-service", "grow-room-ha-host"}
+    selected = [sample for sample in rolled if sample["job"] in jobs]
+    collapsed = _series_after_max_by(selected, ("job",), {})
+    assert sorted(sample["job"] for sample in collapsed) == [
+        "grow-room-ha-host",
+        "sensor-service",
+    ]
+    assert all(set(sample) == {"job"} for sample in collapsed)
 
 
 def _ha(metric: str) -> str:
