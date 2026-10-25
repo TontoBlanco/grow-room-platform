@@ -109,5 +109,3 @@ def create_audit_router(store: AuditStore | None = None) -> APIRouter:
     )
 
     return router
-
-
