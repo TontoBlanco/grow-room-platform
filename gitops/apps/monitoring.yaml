@@ -45,3 +45,7 @@ spec:
       kind: CustomResourceDefinition
       jqPathExpressions:
         - .spec.conversion.webhook.clientConfig.caBundle
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /status/terminatingReplicas
