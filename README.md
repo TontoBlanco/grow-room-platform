@@ -30,12 +30,25 @@ flowchart LR
 ## Roadmap
 
 - [x] **Week 1 (starter):** sensor service, tests, Dockerfile
-- [ ] **Week 1:** GitHub Actions CI (lint, test, build and push to GHCR), written by hand; see [docs/WEEK1_CI_GUIDE.md](docs/WEEK1_CI_GUIDE.md)
-- [ ] **Week 2:** Terraform: VPC + EKS (with remote state and a budget alert)
+- [x] **Week 1:** GitHub Actions CI (lint, test, build and push to GHCR, Trivy)
+- [ ] **Week 2:** Terraform modules authored from scratch (`infra/modules/network`, `infra/modules/cluster`); `fmt` / `validate` / `tflint` in CI; remote-state stub; AWS Budgets $20 alert before any paid apply — see [docs/WEEK2_TERRAFORM_GUIDE.md](docs/WEEK2_TERRAFORM_GUIDE.md)
 - [ ] **Week 3:** Helm chart + Argo CD GitOps on k3d, then EKS
 - [ ] **Week 4:** Prometheus scraping `/metrics`, Grafana VPD dashboard, alerts
 - [ ] **Week 5:** Hardening, docs, Terraform Associate exam
 - [ ] **Optional:** K3s on a Raspberry Pi next to the tent (edge)
+
+## Infrastructure (Week 2+)
+
+Terraform under [`infra/`](infra/):
+
+| Path | Purpose |
+|------|---------|
+| `infra/modules/network` | VPC, public/private subnets, IGW, optional NAT |
+| `infra/modules/cluster` | `local` (k3d outputs) or `eks` (IAM + SG stubs) |
+| `infra/backend.tf.example` | S3 + DynamoDB remote state template |
+
+Daily work defaults to **`cluster_mode = "local"`** (no AWS cost). Set an
+AWS Budgets alert at **$20/month** before enabling NAT or `cluster_mode = "eks"`.
 
 ## API
 

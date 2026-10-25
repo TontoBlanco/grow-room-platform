@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars for local overrides (git-ignored if you add the pattern).
+# Defaults already keep you on the free/local path.
+
+project_name = "grow-room"
+environment  = "dev"
+aws_region   = "us-west-2"
+
+vpc_cidr             = "10.42.0.0/16"
+az_count             = 2
+enable_nat_gateway   = false   # true costs money (NAT Gateway hourly + data)
+
+cluster_mode         = "local" # "local" for k3d daily work; "eks" for AWS stubs
+enable_eks           = false
+kubernetes_version   = "1.31"

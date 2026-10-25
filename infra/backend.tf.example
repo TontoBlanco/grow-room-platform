@@ -1,0 +1,25 @@
+# Remote state (S3 + DynamoDB lock) — copy to backend.tf when you are ready.
+# Do NOT commit real bucket/table names with secrets; names alone are fine.
+#
+# Why remote state?
+#   Local terraform.tfstate is fine for learning on one laptop. Teams need a
+#   shared, locked state so two people (or CI + you) never apply at once.
+#   Kubernetes analogy: etcd is the cluster's source of truth; Terraform state
+#   is yours for cloud resources.
+#
+# Setup (once, in the AWS console or a bootstrap script — outside this module):
+#   1. Create an S3 bucket with versioning ON and block public access ON.
+#   2. Create a DynamoDB table with partition key LockID (String) for locks.
+#   3. Create an AWS Budgets alert at $20/month (email yourself).
+#   4. Rename this file to backend.tf, fill in the names, then:
+#        terraform init -reconfigure
+#
+# terraform {
+#   backend "s3" {
+#     bucket         = "YOUR-UNIQUE-TFSTATE-BUCKET"
+#     key            = "grow-room-platform/dev/terraform.tfstate"
+#     region         = "us-west-2"
+#     dynamodb_table = "YOUR-TF-LOCK-TABLE"
+#     encrypt        = true
+#   }
+# }

@@ -1,0 +1,15 @@
+# Local Terraform state and caches — never commit these
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# Keep secrets/local overrides out of git; commit terraform.tfvars.example instead
+terraform.tfvars
+*.auto.tfvars
+# backend.tf may contain account-specific bucket names; use the .example
+backend.tf
