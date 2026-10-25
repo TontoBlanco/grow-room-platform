@@ -437,7 +437,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Controller air temperature and humidity are the original gauges (`grow_temperature_celsius`, `grow_humidity_percent`). Computed leaf VPD stays `grow_vpd_kpa` on the top row. `grow_controller_vpd_kpa` is the controller's own VPD, converted to kPa. `grow_controller_status` is 1 when that binary sensor is on and 0 when it is off.\n\nProbe canopy is `grow_probe_temperature_celsius`, `grow_probe_humidity_percent`, and `grow_probe_vpd_kpa`.\n\nEach active UIS device is a `device` label on `grow_port_current_power` (the level the UIS device reports) and `grow_port_status` (1 on, 0 off).\n\nThese gauges are created on the first Home Assistant sample. The simulator does not export them, so empty panels are expected until Prometheus scrapes `SENSOR_SOURCE=homeassistant`."
+        "content": "Controller air temperature and humidity are the original gauges (`grow_temperature_celsius`, `grow_humidity_percent`). Computed leaf VPD stays `grow_vpd_kpa` on the top row. `grow_controller_vpd_kpa` is the controller's own VPD, converted to kPa. `grow_controller_status` is 1 when that binary sensor is on and 0 when it is off.\n\nProbe canopy is `grow_probe_temperature_celsius`, `grow_probe_humidity_percent`, and `grow_probe_vpd_kpa`.\n\nEach active UIS device is a `device` label on `grow_port_current_power` (the level the UIS device reports) and `grow_port_status` (1 on, 0 off).\n\nThese gauges are created on the first Home Assistant sample. The simulator does not export them, so empty panels are expected until Prometheus scrapes `SENSOR_SOURCE=homeassistant`.\n\nPanels in this section select `sensor_source=\"homeassistant\"` (the `grow-room-ha-host` scrape) and aggregate with `max by` so each chart has one series per line. In-cluster simulator pods keep their own `instance` and `pod` labels and stay off these legends."
       },
       "datasource": {
         "type": "datasource",
@@ -461,7 +461,7 @@
       },
       "targets": [
         {
-          "expr": "grow_controller_status",
+          "expr": "max by (sensor_source) (grow_controller_status{sensor_source=\"homeassistant\"})",
           "legendFormat": "controller",
           "refId": "A"
         }
@@ -532,7 +532,7 @@
       },
       "targets": [
         {
-          "expr": "grow_controller_vpd_kpa",
+          "expr": "max by (sensor_source) (grow_controller_vpd_kpa{sensor_source=\"homeassistant\"})",
           "legendFormat": "controller",
           "refId": "A"
         }
@@ -598,7 +598,7 @@
       },
       "targets": [
         {
-          "expr": "grow_probe_temperature_celsius",
+          "expr": "max by (sensor_source) (grow_probe_temperature_celsius{sensor_source=\"homeassistant\"})",
           "legendFormat": "probe",
           "refId": "A"
         }
@@ -660,7 +660,7 @@
       },
       "targets": [
         {
-          "expr": "grow_probe_humidity_percent",
+          "expr": "max by (sensor_source) (grow_probe_humidity_percent{sensor_source=\"homeassistant\"})",
           "legendFormat": "probe",
           "refId": "A"
         }
@@ -722,7 +722,7 @@
       },
       "targets": [
         {
-          "expr": "grow_probe_vpd_kpa",
+          "expr": "max by (sensor_source) (grow_probe_vpd_kpa{sensor_source=\"homeassistant\"})",
           "legendFormat": "probe",
           "refId": "A"
         }
@@ -774,7 +774,7 @@
     {
       "type": "timeseries",
       "title": "Air vs canopy temperature",
-      "description": "Controller air (`grow_temperature_celsius`) and probe canopy (`grow_probe_temperature_celsius`).",
+      "description": "One series each from the Home Assistant scrape (`sensor_source=\"homeassistant\"`): controller air (`grow_temperature_celsius`) and probe canopy (`grow_probe_temperature_celsius`).",
       "id": 15,
       "gridPos": {
         "h": 9,
@@ -788,12 +788,12 @@
       },
       "targets": [
         {
-          "expr": "grow_temperature_celsius",
+          "expr": "max by (sensor_source) (grow_temperature_celsius{sensor_source=\"homeassistant\"})",
           "legendFormat": "controller air",
           "refId": "A"
         },
         {
-          "expr": "grow_probe_temperature_celsius",
+          "expr": "max by (sensor_source) (grow_probe_temperature_celsius{sensor_source=\"homeassistant\"})",
           "legendFormat": "probe canopy",
           "refId": "B"
         }
@@ -826,7 +826,7 @@
     {
       "type": "timeseries",
       "title": "Air vs canopy humidity",
-      "description": "Controller air (`grow_humidity_percent`) and probe canopy (`grow_probe_humidity_percent`).",
+      "description": "One series each from the Home Assistant scrape (`sensor_source=\"homeassistant\"`): controller air (`grow_humidity_percent`) and probe canopy (`grow_probe_humidity_percent`).",
       "id": 16,
       "gridPos": {
         "h": 9,
@@ -840,12 +840,12 @@
       },
       "targets": [
         {
-          "expr": "grow_humidity_percent",
+          "expr": "max by (sensor_source) (grow_humidity_percent{sensor_source=\"homeassistant\"})",
           "legendFormat": "controller air",
           "refId": "A"
         },
         {
-          "expr": "grow_probe_humidity_percent",
+          "expr": "max by (sensor_source) (grow_probe_humidity_percent{sensor_source=\"homeassistant\"})",
           "legendFormat": "probe canopy",
           "refId": "B"
         }
@@ -878,7 +878,7 @@
     {
       "type": "timeseries",
       "title": "VPD: computed, controller, probe",
-      "description": "Computed leaf VPD (`grow_vpd_kpa`) next to device VPD (`grow_controller_vpd_kpa`, `grow_probe_vpd_kpa`).",
+      "description": "One series each from the Home Assistant scrape (`sensor_source=\"homeassistant\"`): computed leaf VPD (`grow_vpd_kpa`), controller VPD (`grow_controller_vpd_kpa`), and probe canopy VPD (`grow_probe_vpd_kpa`).",
       "id": 17,
       "gridPos": {
         "h": 9,
@@ -892,17 +892,17 @@
       },
       "targets": [
         {
-          "expr": "grow_vpd_kpa",
+          "expr": "max by (sensor_source) (grow_vpd_kpa{sensor_source=\"homeassistant\"})",
           "legendFormat": "computed leaf",
           "refId": "A"
         },
         {
-          "expr": "grow_controller_vpd_kpa",
+          "expr": "max by (sensor_source) (grow_controller_vpd_kpa{sensor_source=\"homeassistant\"})",
           "legendFormat": "controller",
           "refId": "B"
         },
         {
-          "expr": "grow_probe_vpd_kpa",
+          "expr": "max by (sensor_source) (grow_probe_vpd_kpa{sensor_source=\"homeassistant\"})",
           "legendFormat": "probe canopy",
           "refId": "C"
         }
@@ -962,7 +962,7 @@
       },
       "targets": [
         {
-          "expr": "grow_port_status",
+          "expr": "max by (device) (grow_port_status{sensor_source=\"homeassistant\"})",
           "legendFormat": "{{device}}",
           "refId": "A"
         }
@@ -1034,7 +1034,7 @@
       },
       "targets": [
         {
-          "expr": "grow_port_current_power",
+          "expr": "max by (device) (grow_port_current_power{sensor_source=\"homeassistant\"})",
           "legendFormat": "{{device}}",
           "refId": "A"
         }
@@ -1078,7 +1078,7 @@
       },
       "targets": [
         {
-          "expr": "grow_port_status",
+          "expr": "max by (device) (grow_port_status{sensor_source=\"homeassistant\"})",
           "legendFormat": "{{device}}",
           "refId": "A"
         }
@@ -1142,7 +1142,7 @@
       },
       "targets": [
         {
-          "expr": "grow_port_current_power",
+          "expr": "max by (device) (grow_port_current_power{sensor_source=\"homeassistant\"})",
           "legendFormat": "{{device}}",
           "refId": "A"
         }
@@ -1193,6 +1193,6 @@
   "timezone": "browser",
   "title": "Grow-room VPD",
   "uid": "grow-room-vpd",
-  "version": 2,
-  "description": "Controller air, computed leaf VPD, probe canopy, and UIS port power/status from sensor-service. Probe, controller, and port gauges appear after a Home Assistant sample."
+  "version": 3,
+  "description": "Controller air, computed leaf VPD, probe canopy, and UIS port power/status from sensor-service. The controller, probe, and port section reads the Home Assistant scrape (`sensor_source=\"homeassistant\"`) so each chart has one series per line. Those gauges appear after a Home Assistant sample."
 }
