@@ -1,0 +1,35 @@
+name: gitops-bump
+
+on:
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set image tag from CI commit
+        id: meta
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          echo "tag=sha-${SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: Bump image.tag in values
+        run: |
+          sed -i "s/^  tag: .*/  tag: \"${{ steps.meta.outputs.tag }}\"/" \
+            charts/sensor-service/values.yaml
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "gitops: bump sensor-service to ${{ steps.meta.outputs.tag }}"
+          title: "gitops: bump sensor-service to ${{ steps.meta.outputs.tag }}"
+          body: "Automated tag bump after CI published the image. Merge to let Argo sync."
+          branch: gitops/bump-${{ steps.meta.outputs.tag }}
+      
+        
