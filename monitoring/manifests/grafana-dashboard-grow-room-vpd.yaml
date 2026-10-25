@@ -32,7 +32,7 @@ data:
           "id": 1,
           "gridPos": {
             "h": 4,
-            "w": 4,
+            "w": 9,
             "x": 0,
             "y": 0
           },
@@ -40,10 +40,11 @@ data:
             "type": "prometheus",
             "uid": "prometheus"
           },
+          "description": "One tile per live scrape job. max by (job) drops pod and instance labels, so a rolled sensor-service target does not stay on the board as its own DOWN tile.",
           "targets": [
             {
-              "expr": "up{job=\"sensor-service\"}",
-              "legendFormat": "up",
+              "expr": "max by (job) (up{job=~\"sensor-service|grow-room-ha-host\"})",
+              "legendFormat": "{{job}}",
               "refId": "A"
             }
           ],
@@ -87,7 +88,9 @@ data:
               ]
             },
             "colorMode": "background",
-            "graphMode": "none"
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "orientation": "horizontal"
           }
         },
         {
@@ -97,7 +100,7 @@ data:
           "gridPos": {
             "h": 4,
             "w": 5,
-            "x": 4,
+            "x": 9,
             "y": 0
           },
           "datasource": {
@@ -153,7 +156,7 @@ data:
           "gridPos": {
             "h": 4,
             "w": 5,
-            "x": 9,
+            "x": 14,
             "y": 0
           },
           "datasource": {
@@ -209,7 +212,7 @@ data:
           "gridPos": {
             "h": 4,
             "w": 5,
-            "x": 14,
+            "x": 19,
             "y": 0
           },
           "datasource": {
@@ -355,15 +358,16 @@ data:
             "type": "prometheus",
             "uid": "prometheus"
           },
+          "description": "Scrape up is one line per job. Read errors are summed by job so a replaced pod does not keep a separate legend entry.",
           "targets": [
             {
-              "expr": "up{job=\"sensor-service\"}",
-              "legendFormat": "up",
+              "expr": "max by (job) (up{job=~\"sensor-service|grow-room-ha-host\"})",
+              "legendFormat": "{{job}}",
               "refId": "A"
             },
             {
-              "expr": "rate(grow_read_errors[5m])",
-              "legendFormat": "read_errors/s",
+              "expr": "sum by (job) (rate(grow_read_errors[5m]))",
+              "legendFormat": "read_errors/s {{job}}",
               "refId": "B"
             }
           ],
