@@ -1,0 +1,29 @@
+# App-of-apps: one Application that syncs every Application under gitops/apps/.
+# Apply AFTER Argo CD is installed and AFTER this repo is pushed to GitHub:
+#   kubectl apply -n argocd -f gitops/root-app.yaml
+#
+# Mental model: this is the umbrella chart / "parent" that owns child apps.
+# Change child YAML under gitops/apps/ → Argo syncs children → cluster converges.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grow-room-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # Change if your fork differs; Argo CD pulls from Git, not your laptop path.
+    repoURL: https://github.com/TontoBlanco/grow-room-platform.git
+    targetRevision: HEAD
+    path: gitops/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

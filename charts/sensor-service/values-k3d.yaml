@@ -1,0 +1,25 @@
+# Local k3d overrides — zero cloud cost, no HA secrets.
+replicaCount: 1
+
+image:
+  pullPolicy: Always
+
+service:
+  # k3d maps LoadBalancer via its built-in servicelb (klipper); NodePort also works.
+  type: LoadBalancer
+  port: 8000
+
+env:
+  SENSOR_SOURCE: simulator
+  LEAF_TEMP_OFFSET_C: "-2.0"
+
+autoscaling:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 48Mi
+  limits:
+    cpu: 200m
+    memory: 192Mi

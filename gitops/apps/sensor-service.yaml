@@ -1,0 +1,39 @@
+# Child Application: deploys the Helm chart from charts/sensor-service.
+# Argo CD renders the chart (like `helm template` + apply) and tracks health.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sensor-service
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/TontoBlanco/grow-room-platform.git
+    targetRevision: HEAD
+    path: charts/sensor-service
+    helm:
+      # Local/k3d defaults: simulator, LoadBalancer, no HA secrets.
+      valueFiles:
+        - values.yaml
+        - values-k3d.yaml
+      # CI can later bump this tag instead of editing values files by hand:
+      # parameters:
+      #   - name: image.tag
+      #     value: "abc1234"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: grow-room
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  # Ignore meaningless noise if you later add HPA-driven replica churn:
+  # ignoreDifferences:
+  #   - group: apps
+  #     kind: Deployment
+  #     jsonPointers:
+  #       - /spec/replicas

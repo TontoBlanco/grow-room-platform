@@ -1,0 +1,15 @@
+sensor-service {{ .Chart.Version }} deployed as {{ include "sensor-service.fullname" . }}.
+
+Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+SENSOR_SOURCE: {{ .Values.env.SENSOR_SOURCE }}
+
+Check health:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "sensor-service.fullname" . }} 8000:{{ .Values.service.port }}
+  curl -s http://127.0.0.1:8000/healthz
+  curl -s http://127.0.0.1:8000/readings
+
+Prometheus scrape path: /metrics (annotated on the Pod).
+
+If ImagePullBackOff on GHCR: make the package public, or set imagePullSecrets
+and create a dockerconfigjson Secret (see docs/WEEK3_GITOPS_GUIDE.md).

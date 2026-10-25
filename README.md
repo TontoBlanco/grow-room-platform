@@ -31,8 +31,8 @@ flowchart LR
 
 - [x] **Week 1 (starter):** sensor service, tests, Dockerfile
 - [x] **Week 1:** GitHub Actions CI (lint, test, build and push to GHCR, Trivy)
-- [ ] **Week 2:** Terraform modules authored from scratch (`infra/modules/network`, `infra/modules/cluster`); `fmt` / `validate` / `tflint` in CI; remote-state stub; AWS Budgets $20 alert before any paid apply — see [docs/WEEK2_TERRAFORM_GUIDE.md](docs/WEEK2_TERRAFORM_GUIDE.md)
-- [ ] **Week 3:** Helm chart + Argo CD GitOps on k3d, then EKS
+- [x] **Week 2:** Terraform modules authored from scratch (`infra/modules/network`, `infra/modules/cluster`); `fmt` / `validate` / `tflint` in CI; remote-state stub; AWS Budgets $20 alert before any paid apply — see [docs/WEEK2_TERRAFORM_GUIDE.md](docs/WEEK2_TERRAFORM_GUIDE.md)
+- [ ] **Week 3:** Helm chart + Argo CD GitOps on k3d (`charts/sensor-service`, `gitops/` app-of-apps); manual sync of image tag; CI bump later — see [docs/WEEK3_GITOPS_GUIDE.md](docs/WEEK3_GITOPS_GUIDE.md)
 - [ ] **Week 4:** Prometheus scraping `/metrics`, Grafana VPD dashboard, alerts
 - [ ] **Week 5:** Hardening, docs, Terraform Associate exam
 - [ ] **Optional:** K3s on a Raspberry Pi next to the tent (edge)
@@ -49,6 +49,21 @@ Terraform under [`infra/`](infra/):
 
 Daily work defaults to **`cluster_mode = "local"`** (no AWS cost). Set an
 AWS Budgets alert at **$20/month** before enabling NAT or `cluster_mode = "eks"`.
+
+## GitOps (Week 3+)
+
+Helm + Argo CD under [`charts/`](charts/) and [`gitops/`](gitops/):
+
+| Path | Purpose |
+|------|---------|
+| `charts/sensor-service` | Helm chart for the FastAPI sensor service (GHCR image, `/healthz`, simulator default) |
+| `gitops/root-app.yaml` | Argo CD app-of-apps entrypoint |
+| `gitops/apps/sensor-service.yaml` | Application → Helm chart into namespace `grow-room` |
+| `scripts/bootstrap-k3d.sh` | Create `grow-room-dev` k3d cluster + install Argo CD |
+
+Daily CD work defaults to **k3d** (no AWS cost). Promote by changing `image.tag`
+in Git; Argo syncs. Extend CI yourself later to open that bump as a PR
+([docs/WEEK3_CI_NOTE.md](docs/WEEK3_CI_NOTE.md)).
 
 ## API
 

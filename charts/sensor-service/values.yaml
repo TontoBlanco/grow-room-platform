@@ -1,0 +1,97 @@
+# Default values for sensor-service.
+# Override per environment with values-k3d.yaml or Argo CD Application parameters.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/tontoblanco/grow-room-platform
+  # Prefer an immutable tag (git SHA) in GitOps; "latest" is fine for first local smoke.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Leave empty for public GHCR packages. For private packages, create a
+# kubernetes.io/dockerconfigjson Secret and set its name here.
+imagePullSecrets: []
+# - name: ghcr-pull
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 8000
+  # For local browser access via k3d, values-k3d.yaml can switch to NodePort/LoadBalancer.
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+# FastAPI liveness/readiness both hit /healthz (cheap, no sensor I/O required).
+probes:
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    path: /healthz
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Application env. Simulator needs no secrets — default for demos and CI smoke.
+env:
+  SENSOR_SOURCE: simulator
+  LEAF_TEMP_OFFSET_C: "0"
+  # Home Assistant path (off by default). When SENSOR_SOURCE=homeassistant,
+  # set HA_URL / HA_* entities and inject HA_TOKEN from a Secret (not plain values).
+  # HA_URL: "http://homeassistant.default.svc:8123"
+  # HA_TEMP_ENTITY: sensor.grow_tent_temperature
+  # HA_HUMIDITY_ENTITY: sensor.grow_tent_humidity
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Optional Home Assistant token via existing Secret (chart never creates tokens).
+homeAssistant:
+  existingSecret: ""
+  secretKey: token

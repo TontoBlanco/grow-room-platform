@@ -1,0 +1,7 @@
+# Optional: lets `kubectl apply -k gitops/apps` work for a manual bootstrap
+# without the root Application. Argo CD's directory source also picks up
+# every YAML here; kustomization is not required for Argo itself.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - sensor-service.yaml

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: sensor-service
+description: FastAPI grow-room sensor service for controlled-environment agriculture (VPD, temp, humidity, CO2).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - grow-room
+  - sensors
+  - cea
+  - prometheus
+maintainers:
+  - name: Cole Miller
