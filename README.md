@@ -74,12 +74,42 @@ kube-prometheus-stack under [`monitoring/`](monitoring/) + Argo Application
 |------|---------|
 | `monitoring/values-k3d.yaml` | Small-footprint Helm values for k3d |
 | `monitoring/manifests/` | ServiceMonitor, PrometheusRule, Grafana dashboard ConfigMap |
-| `monitoring/dashboards/grow-room-vpd.json` | Temp / humidity / VPD / scrape health |
+| `monitoring/dashboards/grow-room-vpd.json` | Temp / humidity / computed VPD / scrape health, plus controller, probe canopy, and port panels |
 | `monitoring/docs-slo.md` | Ingest availability + data freshness SLOs; scrape-down runbook |
 
 Prometheus scrapes the sensor Service via a **ServiceMonitor** (operator-native).
 Pod `prometheus.io/*` annotations from Week 3 remain as documentation. Daily lab
 work stays on **k3d** (no AWS cost).
+
+### Reload the Grow-room VPD dashboard
+
+The board uid stays `grow-room-vpd`. The top row still queries
+`grow_temperature_celsius`, `grow_humidity_percent`, and computed `grow_vpd_kpa`.
+Panels under **Controller air and probe canopy** and **UIS ports** query only
+gauges the service exports after a Home Assistant sample:
+`grow_controller_vpd_kpa`, `grow_controller_status`,
+`grow_probe_temperature_celsius`, `grow_probe_humidity_percent`,
+`grow_probe_vpd_kpa`, `grow_port_current_power`, and `grow_port_status`
+(label `device`). The simulator does not publish those series, so those panels
+stay empty until Prometheus scrapes `SENSOR_SOURCE=homeassistant`.
+
+Git is the ConfigMap `monitoring/manifests/grafana-dashboard-grow-room-vpd.yaml`
+(same JSON as `monitoring/dashboards/grow-room-vpd.json`). On k3d, after that
+file is what Argo is tracking:
+
+```bash
+kubectl apply -f monitoring/manifests/grafana-dashboard-grow-room-vpd.yaml
+kubectl -n monitoring rollout restart deploy/monitoring-grafana
+kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
+```
+
+Login `admin` / `grow-room-lab`. The Grafana sidecar reloads a changed ConfigMap
+on its own; restart the deployment if the old layout is still open. Import
+fallback: Dashboards → New → Import → `monitoring/dashboards/grow-room-vpd.json`,
+overwrite uid `grow-room-vpd`. Argo self-heal restores the Git copy on the next
+sync, so a branch preview that is not merged yet is easier to see by importing
+the JSON than by applying the manifest. Full lab notes are in
+[docs/WEEK4_OBSERVABILITY_GUIDE.md](docs/WEEK4_OBSERVABILITY_GUIDE.md) Step 5.
 
 ## API
 

@@ -126,7 +126,8 @@
         },
         "colorMode": "value",
         "graphMode": "area"
-      }
+      },
+      "description": "Controller air temperature (`grow_temperature_celsius`). Same gauge the top row has always used."
     },
     {
       "type": "stat",
@@ -181,7 +182,8 @@
         },
         "colorMode": "value",
         "graphMode": "area"
-      }
+      },
+      "description": "Controller air relative humidity (`grow_humidity_percent`)."
     },
     {
       "type": "stat",
@@ -240,7 +242,8 @@
         },
         "colorMode": "value",
         "graphMode": "area"
-      }
+      },
+      "description": "Leaf VPD computed by sensor-service (`grow_vpd_kpa`) from air temperature, humidity, and LEAF_TEMP_OFFSET_C. The controller's own reading is `grow_controller_vpd_kpa` below."
     },
     {
       "type": "timeseries",
@@ -318,7 +321,8 @@
         "tooltip": {
           "mode": "multi"
         }
-      }
+      },
+      "description": "Controller air temperature, humidity, and computed leaf VPD. These three queries are unchanged."
     },
     {
       "type": "timeseries",
@@ -407,6 +411,766 @@
           "mode": "single"
         }
       }
+    },
+    {
+      "type": "row",
+      "title": "Controller air and probe canopy",
+      "id": 8,
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      }
+    },
+    {
+      "type": "text",
+      "title": "Home Assistant series",
+      "id": 9,
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Controller air temperature and humidity are the original gauges (`grow_temperature_celsius`, `grow_humidity_percent`). Computed leaf VPD stays `grow_vpd_kpa` on the top row. `grow_controller_vpd_kpa` is the controller's own VPD, converted to kPa. `grow_controller_status` is 1 when that binary sensor is on and 0 when it is off.\n\nProbe canopy is `grow_probe_temperature_celsius`, `grow_probe_humidity_percent`, and `grow_probe_vpd_kpa`.\n\nEach active UIS device is a `device` label on `grow_port_current_power` (the level the UIS device reports) and `grow_port_status` (1 on, 0 off).\n\nThese gauges are created on the first Home Assistant sample. The simulator does not export them, so empty panels are expected until Prometheus scrapes `SENSOR_SOURCE=homeassistant`."
+      },
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Grafana --"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Controller status",
+      "description": "`grow_controller_status`: 1 if the controller status binary sensor is on, else 0.",
+      "id": 10,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 29
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_controller_status",
+          "legendFormat": "controller",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OFF",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "ON",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Controller VPD",
+      "description": "Device-reported controller VPD (`grow_controller_vpd_kpa`), already converted to kPa. Independent of LEAF_TEMP_OFFSET_C.",
+      "id": 11,
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 4,
+        "y": 29
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_controller_vpd_kpa",
+          "legendFormat": "controller",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pressurekpa",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.8
+              },
+              {
+                "color": "yellow",
+                "value": 1.4
+              },
+              {
+                "color": "red",
+                "value": 1.8
+              }
+            ]
+          },
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Probe canopy \u00b0C",
+      "description": "Internal probe temperature (`grow_probe_temperature_celsius`).",
+      "id": 12,
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 9,
+        "y": 29
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_probe_temperature_celsius",
+          "legendFormat": "probe",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 18
+              },
+              {
+                "color": "red",
+                "value": 32
+              }
+            ]
+          },
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Probe canopy RH",
+      "description": "Internal probe relative humidity (`grow_probe_humidity_percent`).",
+      "id": 13,
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 14,
+        "y": 29
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_probe_humidity_percent",
+          "legendFormat": "probe",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Probe canopy VPD",
+      "description": "Device-reported probe VPD (`grow_probe_vpd_kpa`), already converted to kPa.",
+      "id": 14,
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 19,
+        "y": 29
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_probe_vpd_kpa",
+          "legendFormat": "probe",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pressurekpa",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.8
+              },
+              {
+                "color": "yellow",
+                "value": 1.4
+              },
+              {
+                "color": "red",
+                "value": 1.8
+              }
+            ]
+          },
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Air vs canopy temperature",
+      "description": "Controller air (`grow_temperature_celsius`) and probe canopy (`grow_probe_temperature_celsius`).",
+      "id": 15,
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 33
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_temperature_celsius",
+          "legendFormat": "controller air",
+          "refId": "A"
+        },
+        {
+          "expr": "grow_probe_temperature_celsius",
+          "legendFormat": "probe canopy",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "unit": "celsius",
+          "decimals": 1,
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Air vs canopy humidity",
+      "description": "Controller air (`grow_humidity_percent`) and probe canopy (`grow_probe_humidity_percent`).",
+      "id": 16,
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 33
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_humidity_percent",
+          "legendFormat": "controller air",
+          "refId": "A"
+        },
+        {
+          "expr": "grow_probe_humidity_percent",
+          "legendFormat": "probe canopy",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "VPD: computed, controller, probe",
+      "description": "Computed leaf VPD (`grow_vpd_kpa`) next to device VPD (`grow_controller_vpd_kpa`, `grow_probe_vpd_kpa`).",
+      "id": 17,
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 33
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_vpd_kpa",
+          "legendFormat": "computed leaf",
+          "refId": "A"
+        },
+        {
+          "expr": "grow_controller_vpd_kpa",
+          "legendFormat": "controller",
+          "refId": "B"
+        },
+        {
+          "expr": "grow_probe_vpd_kpa",
+          "legendFormat": "probe canopy",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "unit": "pressurekpa",
+          "decimals": 3,
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "UIS ports",
+      "id": 18,
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Port status",
+      "description": "`grow_port_status` by `device` label. 1 if that UIS status binary sensor is on, else 0. Only devices present on the last sample are shown.",
+      "id": 19,
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_port_status",
+          "legendFormat": "{{device}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OFF",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "ON",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Port power",
+      "description": "`grow_port_current_power` by `device` label. Level reported by the UIS device (power or speed).",
+      "id": 20,
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 43
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_port_current_power",
+          "legendFormat": "{{device}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Port status over time",
+      "description": "`grow_port_status` for each `device` label (1 on, 0 off).",
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_port_status",
+          "legendFormat": "{{device}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OFF",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "ON",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "noValue": "No HA sample",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Port power over time",
+      "description": "`grow_port_current_power` for each `device` label. Level reported by the device.",
+      "id": 22,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "grow_port_current_power",
+          "legendFormat": "{{device}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "decimals": 1,
+          "noValue": "No HA sample"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
     }
   ],
   "refresh": "30s",
@@ -415,7 +1179,8 @@
   "tags": [
     "grow-room",
     "vpd",
-    "cea"
+    "cea",
+    "home-assistant"
   ],
   "templating": {
     "list": []
@@ -428,5 +1193,6 @@
   "timezone": "browser",
   "title": "Grow-room VPD",
   "uid": "grow-room-vpd",
-  "version": 1
+  "version": 2,
+  "description": "Controller air, computed leaf VPD, probe canopy, and UIS port power/status from sensor-service. Probe, controller, and port gauges appear after a Home Assistant sample."
 }

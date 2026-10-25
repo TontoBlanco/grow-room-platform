@@ -10,7 +10,8 @@ By the end of the week you have:
 1. **kube-prometheus-stack** installed via an Argo CD Application (Helm + values
    from Git) into namespace `monitoring`.
 2. A **ServiceMonitor** so Prometheus scrapes `sensor-service` `/metrics`.
-3. A **Grafana VPD dashboard** (temp, humidity, VPD, scrape health).
+3. A **Grafana VPD dashboard** (temp, humidity, computed VPD, scrape health, and
+   Home Assistant controller / probe / port panels when those series exist).
 4. **PrometheusRules** for humidity out of range, scrape down, and pod restarts.
 5. **Two SLOs** (ingest availability, data freshness) + one runbook.
 6. Still **$0** cloud — same k3d cluster `grow-room-dev` from Week 3.
@@ -18,11 +19,13 @@ By the end of the week you have:
 You already know Deployments, Services, and Argo sync. This week adds the
 monitoring *control plane* that watches those objects. The sensor chart already
 exposes Prometheus gauges (`grow_temperature_celsius`, `grow_humidity_percent`,
-`grow_vpd_kpa`, …) and carries `prometheus.io/*` pod annotations — Week 4 wires
-the scraper and the UI. With `SENSOR_SOURCE=homeassistant` the scrape can also
-include `grow_probe_temperature_celsius`, `grow_probe_humidity_percent`,
-`grow_controller_vpd_kpa` (device VPD converted to kPa), and
-`grow_port_current_power`.
+`grow_vpd_kpa`, `grow_co2_ppm`) and carries `prometheus.io/*` pod annotations —
+Week 4 wires the scraper and the UI. With `SENSOR_SOURCE=homeassistant` the
+scrape can also include `grow_probe_temperature_celsius`,
+`grow_probe_humidity_percent`, `grow_probe_vpd_kpa`, `grow_controller_vpd_kpa`
+(device VPD converted to kPa), `grow_controller_status`,
+`grow_port_current_power`, and `grow_port_status` (label `device`). The
+simulator does not export that second set.
 
 Try each step on the cluster before treating the Definition of Done as checked.
 
@@ -168,7 +171,7 @@ intent and help other tools.
 | `monitoring/manifests/sensor-servicemonitor.yaml` | Scrape grow-room Service |
 | `monitoring/manifests/grow-room-prometheusrule.yaml` | Alert rules |
 | `monitoring/manifests/grafana-dashboard-grow-room-vpd.yaml` | Dashboard ConfigMap for Grafana sidecar |
-| `monitoring/dashboards/grow-room-vpd.json` | Same dashboard as raw JSON (import / review) |
+| `monitoring/dashboards/grow-room-vpd.json` | Same dashboard as raw JSON (import / review). Keep it identical to the ConfigMap |
 | `monitoring/alerts/grow-room-rules.yaml` | Human-readable copy of the rule CR |
 | `monitoring/docs-slo.md` | Two SLOs + scrape-down runbook |
 
@@ -270,8 +273,23 @@ grow_vpd_kpa
 grow_humidity_percent
 ```
 
+After a Home Assistant sample has been scraped, these series exist too (they
+are absent on the simulator):
+
+```promql
+grow_probe_temperature_celsius
+grow_probe_humidity_percent
+grow_probe_vpd_kpa
+grow_controller_vpd_kpa
+grow_controller_status
+grow_port_current_power
+grow_port_status
+```
+
 If `job` label differs slightly, use the Targets page label set — operator
-versions sometimes prefix names. Adjust alert expressions to match.
+versions sometimes prefix names. Adjust alert expressions to match. The
+dashboard queries the `grow_*` gauges without a `job` filter, so a prefixed
+job name still matches the climate panels.
 
 ### 4d. If the target is missing
 
@@ -295,15 +313,55 @@ Login (lab defaults from values):
 - User: `admin`
 - Password: `grow-room-lab` (change if you expose beyond localhost)
 
-Open **Dashboards** → look for **Grow-room VPD** (sidecar loads ConfigMaps
-labeled `grafana_dashboard=1`). You should see temp, humidity, VPD, scrape
-health, and CO₂ (CO₂ may be empty if the simulator leaves it unset).
+Open **Dashboards** → **Grow-room VPD** (uid `grow-room-vpd`). The sidecar loads
+ConfigMaps labeled `grafana_dashboard=1`. The top of the board is unchanged:
+temperature, humidity, computed leaf VPD (`grow_vpd_kpa`), scrape health, and
+CO₂ (CO₂ may be empty if the sensor leaves it unset).
 
-**Manual import fallback:** Grafana → Dashboards → Import → upload
-`monitoring/dashboards/grow-room-vpd.json`. Prefer the ConfigMap path so Git
-remains source of truth.
+Further down:
 
-Datasource should already point at in-cluster Prometheus (chart default).
+- **Controller air and probe canopy** — controller status and device VPD, probe
+  canopy temp / RH / VPD, and charts that compare controller air
+  (`grow_temperature_celsius`, `grow_humidity_percent`) with the probe series.
+- **UIS ports** — `grow_port_status` and `grow_port_current_power`, one series
+  per `device` label (for example `port_1`, `humidifier`). Power is the level
+  the UIS device reports.
+
+Those Home Assistant gauges are created on the first real sample. On the
+simulator the new panels say **No HA sample**. That empty state is expected
+until Prometheus has scraped `SENSOR_SOURCE=homeassistant`.
+
+### Reload after the dashboard JSON changes
+
+Argo applies `monitoring/manifests/` from the revision it tracks (usually
+`main`). Once this ConfigMap is in that revision, sync (or let auto-sync run),
+then confirm the live object mentions a probe gauge:
+
+```bash
+kubectl -n monitoring get cm grafana-dashboard-grow-room-vpd \
+  -o jsonpath='{.data.grow-room-vpd\.json}' | grep -o grow_probe_temperature_celsius | head
+```
+
+The sidecar writes the JSON into Grafana's provisioning directory and calls
+the dashboard reload API. Refresh the **Grow-room VPD** tab. If the old seven
+panels are still all you see:
+
+```bash
+kubectl apply -f monitoring/manifests/grafana-dashboard-grow-room-vpd.yaml
+kubectl -n monitoring rollout restart deploy/monitoring-grafana
+kubectl -n monitoring rollout status deploy/monitoring-grafana
+```
+
+`kubectl apply` from a branch Argo is not tracking will stick only until the
+next self-heal. For a preview before merge, use the import path below.
+
+**Manual import:** Dashboards → New → Import → upload
+`monitoring/dashboards/grow-room-vpd.json`. Choose the Prometheus datasource
+and overwrite uid `grow-room-vpd` when Grafana asks. Prefer the ConfigMap once
+Git has the change, so the next sidecar reload does not put the old board back.
+
+The JSON datasource uid is `prometheus`, the same uid the original VPD panels
+use. Point the import at that Prometheus datasource if Grafana asks.
 
 ---
 
@@ -397,7 +455,7 @@ Do not point this Application at EKS until you deliberately accept cloud cost.
 - [ ] `gitops/apps/kustomization.yaml` lists `monitoring.yaml`
 - [ ] Argo Application `monitoring` is Synced / Healthy (or progressing then Healthy)
 - [ ] Prometheus `/targets` shows sensor-service **UP**
-- [ ] Grafana shows **Grow-room VPD** with live temp / humidity / VPD
+- [ ] Grafana shows **Grow-room VPD** with live temp / humidity / VPD (probe and port panels fill in after a Home Assistant scrape)
 - [ ] At least one alert proven to fire and resolve (scrape down or humidity test)
 - [ ] Two SLOs + scrape-down runbook reviewed (`monitoring/docs-slo.md`)
 - [ ] README roadmap Week 4 checkbox updated
@@ -419,6 +477,8 @@ Week 5 is hardening, docs polish, and Terraform Associate prep.
 | No sensor target | ServiceMonitor selector / namespace | Compare labels; confirm `serviceMonitorSelectorNilUsesHelmValues: false` |
 | Target DOWN | Pod not Ready / wrong port name | `kubectl -n grow-room get endpoints`; port must be named `http` |
 | Dashboard missing in Grafana | ConfigMap label / sidecar | Label `grafana_dashboard=1`; check sidecar logs; import JSON manually |
+| Dashboard still shows only the original panels | ConfigMap on the cluster is the old revision, or Grafana has not reloaded it | `grep grow_probe_temperature_celsius` on the ConfigMap (Step 5). Restart `deploy/monitoring-grafana`, or import `monitoring/dashboards/grow-room-vpd.json` over uid `grow-room-vpd` |
+| Probe / port panels say "No HA sample" | Simulator, or Prometheus has not scraped an HA sample yet | `SENSOR_SOURCE=homeassistant`, then confirm the `grow_probe_*` / `grow_port_*` series in Prometheus. Empty is expected before that |
 | Alerts never fire | Wrong `job` label / `for:` not elapsed | Match labels from `/targets`; wait out `for:` |
 | Scale test snapped back | Argo self-heal | Pause sync or test via PromQL/Git change |
 | `helm template` huge / slow | Expected for this chart | Redirect to a file; do not commit rendered YAML |
