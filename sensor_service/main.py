@@ -56,6 +56,10 @@ def create_app(source: Source | None = None, leaf_offset: float | None = None) -
             pass  # still serve metrics; error counter shows the failure
         return Response(generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
 
+    from sensor_service.audit import create_audit_router
+
+    app.include_router(create_audit_router())
+
     return app
 
 

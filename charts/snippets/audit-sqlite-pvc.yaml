@@ -1,0 +1,21 @@
+# Optional snippet — mount a small PVC for ./data when the audit DB should
+# survive pod restarts on k3d. Merge into charts/sensor-service only if you
+# want persistence; Week 5 works fine with emptyDir or hostPath for demos.
+#
+# Not a full chart rewrite. Wire volumeMounts yourself in deployment.yaml.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sensor-audit-data
+  namespace: grow-room   # adjust to your release namespace
+  labels:
+    app.kubernetes.io/name: sensor-service
+    app.kubernetes.io/component: audit-db
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: local-path   # k3d / k3s default often works without this
