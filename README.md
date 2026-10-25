@@ -1,326 +1,331 @@
 # grow-room-platform
 
-A cloud-native sensor platform for a home cannabis grow: controlled-environment
-agriculture on a 4x4 tent, delivered with the same CI, GitOps, and
-observability habits used for production Kubernetes. It reads climate data
-(temperature, humidity, VPD, and CO2 when a sensor reports it), exposes an API
-and Prometheus metrics, and keeps an append-only seed-to-sale style audit log.
+I built this capstone to get hands-on experience with tools I kept seeing in
+cloud, infrastructure, and DevOps job postings: Python, Docker, GitHub Actions,
+Terraform, Kubernetes, Helm, Argo CD, Prometheus, and Grafana. I wanted more
+than a tutorial I could say I finished. I wanted a project I could set up,
+break, troubleshoot, and explain.
 
-Daily work runs on a laptop. The cluster is **k3d**. Terraform stays at
-`cluster_mode = "local"` and `enable_eks = false`. Nothing in this repo applies
-an EKS cluster.
+The use case is a 4x4 grow tent I run at home. The service reads climate data
+from an AC Infinity controller through Home Assistant, provides an API and
+Prometheus metrics, and puts the readings on a Grafana dashboard. I also added
+an audit API to practice recording state changes and checking data integrity.
 
-**Architecture write-up:** [docs/CAPSTONE.md](docs/CAPSTONE.md) (interview notes
-and a blog draft).
+**This is a local learning lab, not a production cloud deployment.** Kubernetes
+runs in **k3d** on my computer. Terraform is validated in CI but never applied
+by a repository workflow. The defaults are `cluster_mode = "local"` and
+`enable_eks = false`; there is no `aws_eks_cluster` resource in the repo.
 
-**Living diagram:** [Grow-room Platform Map](https://cursor.com/canvas/store-6a197a3b-901d-4b50-9079-9a539befde02/debaff3b-9e35-48ab-bab0-59761b62fb09)
-— edge flow, cluster layout, milestone status, and the decision log. Atlas
-keeps that page current. The mermaid in this README is the in-repo snapshot
-for GitHub.
+For the longer explanation of the design and what I learned, see
+[docs/CAPSTONE.md](docs/CAPSTONE.md).
 
-## Why this exists
+## Why I built it
 
-I have grown in a controlled environment at home since 2018. The tent today is
-a 4x4 with AC Infinity controls, spectrum-tunable LEDs, and no-till living
-soil. By day I build and run Kubernetes platforms. This project puts those
-together: platform engineering applied to the numbers a grower actually watches.
+My background is in configuration management, systems administration, and
+supporting complex IT environments. I wanted to build practical experience
+with containers, infrastructure as code, CI/CD, GitOps, and monitoring instead
+of only reading about them.
 
-## Architecture
+I've also been growing in a controlled environment since 2018. My current
+setup uses AC Infinity controls, tunable LEDs, and no-till living soil. Using
+my own grow-room data made the project useful to me and gave me real problems
+to work through, especially when I started connecting the equipment to the
+monitoring stack.
 
-Two planes. Docker Compose on the host carries the live tent. k3d carries
-GitOps, the simulator, and the monitoring stack.
+## What I built
+
+| Area | What is in the repo |
+|------|---------------------|
+| Python API | FastAPI service for climate readings, health checks, metrics, and audit events |
+| Data sources | A simulator for repeatable testing and a read-only Home Assistant integration for live tent data |
+| Containers and CI | Docker image, Ruff, pytest with an 80% coverage threshold, GHCR publishing, and Trivy scanning |
+| Kubernetes and GitOps | k3d cluster, Helm chart, Argo CD app-of-apps, and image-tag update PRs |
+| Infrastructure as code | Terraform network and cluster modules checked with `fmt`, `validate`, and `tflint` |
+| Observability | Prometheus, Grafana Grow-room VPD dashboard, three alert rules, and two lab SLOs |
+| Audit history | SQLite-backed plant/batch events with state-transition checks and a SHA-256 hash chain |
+
+I built this over five milestones, from the initial API and tests to GitOps,
+monitoring, and the audit log. The implementation notes are in `docs/`.
+
+## How it fits together
+
+I kept the live grow-room connection separate from the Kubernetes demo:
+
+- **Docker Compose** runs Home Assistant and a sensor-service instance that
+  reads the actual controller. It is read-only and uses a token stored outside
+  Git.
+- **k3d** runs a second sensor-service instance using simulated data, plus
+  Argo CD, Prometheus, and Grafana. It can run without my equipment, Home
+  Assistant account, or AWS credentials.
 
 ```mermaid
 flowchart LR
   ACI["AC Infinity AI+"] -->|Wi-Fi / cloud account| HA["Home Assistant :8123"]
-  HA -->|"GET /api/states"| CS["Compose sensor-service<br/>SENSOR_SOURCE=homeassistant :8000"]
-  CS -->|"job grow-room-ha-host<br/>host.k3d.internal:8000"| PROM[Prometheus]
-  SIM["In-cluster sensor-service<br/>simulator"] -->|ServiceMonitor| PROM
+  HA -->|"GET /api/states"| CS["Compose sensor-service<br/>homeassistant :8000"]
+  CS -->|"grow-room-ha-host<br/>host.k3d.internal:8000"| PROM[Prometheus]
+  SIM["k3d sensor-service<br/>simulator"] -->|ServiceMonitor| PROM
   PROM --> GRAF["Grafana<br/>Grow-room VPD"]
-  ARGO["Argo CD"] -->|Helm| SIM
+  ARGO[Argo CD] -->|Helm| SIM
   ARGO -->|kube-prometheus-stack| PROM
 ```
 
-Live path:
+The live data path is:
 
-**AC Infinity AI+ → Home Assistant → Docker Compose sensor-service
-(`SENSOR_SOURCE=homeassistant`) → Prometheus job `grow-room-ha-host`
-(`host.k3d.internal:8000`) → Grafana dashboard Grow-room VPD**
-(uid `grow-room-vpd`).
+**AC Infinity → Home Assistant → Compose sensor-service → Prometheus → Grafana.**
 
-The in-cluster Deployment stays on the simulator. CI and demos never need the
-tent, a Home Assistant token, or AWS.
+I also keep a [living platform map](https://cursor.com/canvas/store-6a197a3b-901d-4b50-9079-9a539befde02/debaff3b-9e35-48ab-bab0-59761b62fb09)
+with the layout, milestones, and design decisions. The diagram above is the
+version kept in the repo.
 
-## What shipped
+## Run it locally
 
-| Week | In the repo |
-|------|-------------|
-| 1 | FastAPI service, tests, Dockerfile, GitHub Actions (lint, test, GHCR, Trivy) |
-| 2 | Terraform modules under `infra/`; CI runs `fmt`, `validate`, `tflint` only |
-| 3 | Helm chart, Argo CD app-of-apps on k3d, image-tag bump PRs |
-| 4 | kube-prometheus-stack, ServiceMonitor, Grow-room VPD, alerts, two lab SLOs |
-| 5 | `/audit` hash-chained event log, this README, [docs/CAPSTONE.md](docs/CAPSTONE.md) |
+### Python service (simulator)
 
-Host scrape of the Compose sensor, Home Assistant panels on the VPD board,
-legend collapse, and scrape-up collapse are on `main` (PRs
-[#25](https://github.com/TontoBlanco/grow-room-platform/pull/25),
-[#29](https://github.com/TontoBlanco/grow-room-platform/pull/29),
-[#32](https://github.com/TontoBlanco/grow-room-platform/pull/32)).
-An optional Raspberry Pi next to the tent is still an idea, not a manifest.
-
-## API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /healthz` | Liveness |
-| `GET /readings` | Controller air temp (°C/°F), humidity, computed VPD (kPa), CO2, plus `controller`, `probe`, and `ports` |
-| `GET /metrics` | Prometheus gauges (`grow_temperature_celsius`, `grow_vpd_kpa`, and Home Assistant gauges after a real sample) |
-| `GET /docs` | OpenAPI |
-| `/audit/...` | Batches, plants, transitions, history, hash-chain check — see [Audit log](#audit-log) |
-
-Computed VPD uses the Tetens equation. `LEAF_TEMP_OFFSET_C` (k3d values and
-`.env.example` use `-2.0`) shifts leaf temperature for leaf VPD. Home Assistant
-often reports controller and probe VPD in psi; those values are converted to
-`controller.vpd_kpa` and `probe.vpd_kpa`, and the original number and unit come
-back as `vpd_raw` / `vpd_unit`.
-
-## Run locally
-
-### Process (simulator)
+Requires Python 3.12.
 
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
+python3.12 -m venv .venv
+source .venv/bin/activate
 pip install -e '.[dev]'
 ruff check . && pytest --cov=sensor_service
-uvicorn sensor_service.main:app --reload    # http://localhost:8000/readings
+uvicorn sensor_service.main:app --reload
 ```
 
-`SENSOR_SOURCE` defaults to `simulator`.
+Open `http://localhost:8000/readings` or `http://localhost:8000/docs`.
+`SENSOR_SOURCE` defaults to `simulator`, so no physical sensors are needed.
 
 ### Docker Compose
 
 ```bash
-docker compose up --build sensor-service   # simulator only
+docker compose up --build sensor-service  # API with simulated readings
 curl localhost:8000/readings
 ```
 
-`docker compose up` also starts Home Assistant (`ghcr.io/home-assistant/home-assistant:stable`,
-port 8123, config in `./ha-config`). The sensor container reaches it at
-`http://homeassistant:8123`. Compose publishes sensor-service as `8000:8000`
-so k3d can scrape the host. The image runs as uid 10001, so the default audit
-path is `AUDIT_DB_PATH=/tmp/audit.db`.
+Running `docker compose up` without a service name also starts Home Assistant
+on port 8123. The sensor service is published on port 8000 so Prometheus in
+k3d can scrape it through the Docker host.
 
-### Live tent (AC Infinity via Home Assistant)
+### Connect the live controller
 
-AC Infinity has no official public API. The community
+The AC Infinity AI+ does not have an official public API. I use the community
 [homeassistant-acinfinity](https://github.com/dalinicus/homeassistant-acinfinity)
-integration (AI+ over Wi-Fi) lands entities in Home Assistant. This service
-**reads** them with `GET /api/states/<entity_id>` only. It never calls HA
-services or changes tent setpoints.
+integration through HACS and read entities from Home Assistant. My code makes
+`GET /api/states/<entity_id>` calls only. It does **not** change controller
+settings or call Home Assistant services.
 
-1. `docker compose up`, open http://localhost:8123, finish onboarding.
-2. Install [HACS](https://hacs.xyz/), add the AC Infinity integration, sign in
-   with the AC Infinity app account.
-3. Create a long-lived access token (profile → Security).
-4. `cp .env.example .env` and set `SENSOR_SOURCE=homeassistant`,
-   `HA_URL=http://homeassistant:8123`, and `HA_TOKEN`.
-5. `docker compose up` again.
+1. Run `docker compose up` and finish Home Assistant setup at `http://localhost:8123`.
+2. Install [HACS](https://hacs.xyz/) and the AC Infinity integration, then connect the AC Infinity account.
+3. Create a long-lived access token in Home Assistant.
+4. Copy `.env.example` to `.env` and set `SENSOR_SOURCE=homeassistant`, `HA_URL=http://homeassistant:8123`, and `HA_TOKEN`.
+5. Run `docker compose up` again.
 
-`.env`, `ha-config/`, and `data/` are gitignored. The token never goes in Git
-or in `monitoring/values-k3d.yaml`.
+The default `HA_DEVICE_PREFIX=the_garden` maps controller temperature,
+humidity, VPD and status; the internal probe; and the devices `port_1`,
+`humidifier`, `oscillating_fans`, and `ventilation_fan`. Ports 4–7 are not
+included until added to `HA_PORT_DEVICES`. `HA_CO2_ENTITY` is optional and
+empty by default; a blank `HA_*_ENTITY` value skips that reading.
 
-The Garden (UIS Controller AI+ and the internal probe) is the default map when
-`HA_DEVICE_PREFIX=the_garden`:
+`.env`, `ha-config/`, and `data/` are gitignored. The Home Assistant token is
+not stored in the Helm values or monitoring configuration.
 
-| Reading | Entity |
-|---------|--------|
-| Controller air temp / humidity | `sensor.the_garden_controller_temperature`, `sensor.the_garden_controller_humidity` |
-| Controller VPD and status | `sensor.the_garden_controller_vpd`, `binary_sensor.the_garden_status` |
-| Internal probe temp / humidity / VPD | `sensor.the_garden_probe_sensor_probe_temperature`, `sensor.the_garden_probe_sensor_probe_humidity`, `sensor.the_garden_probe_sensor_probe_vpd` |
-| Active devices | `port_1`, `humidifier`, `oscillating_fans`, `ventilation_fan` |
+## API and sensor data
 
-Ports 4–7 stay off the default list. Add a slug to `HA_PORT_DEVICES` when one
-is in use. Blank an `HA_*_ENTITY` variable to skip that sensor. `HA_CO2_ENTITY`
-is empty unless you set it.
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /healthz` | Health check |
+| `GET /readings` | Temperature (°C/°F), humidity, computed VPD (kPa), optional CO2, controller/probe details, and device ports |
+| `GET /metrics` | Prometheus metrics |
+| `GET /docs` | FastAPI OpenAPI documentation |
+| `/audit/...` | Batches, plants, state changes, event history, and integrity checks |
 
-Prometheus gauges that exist only after a Home Assistant sample:
-`grow_probe_temperature_celsius`, `grow_probe_humidity_percent`,
-`grow_probe_vpd_kpa`, `grow_controller_vpd_kpa`, `grow_controller_status`,
-`grow_port_current_power`, `grow_port_status` (label `device`). The simulator
-does not export them.
+The service calculates VPD with the Tetens equation. `LEAF_TEMP_OFFSET_C`
+(default `-2.0` in the lab configuration) adjusts the calculation for leaf
+temperature. When Home Assistant reports controller or probe VPD in psi, the
+API provides a converted kPa value and preserves the original value and unit
+as `vpd_raw` and `vpd_unit`.
 
-### k3d + Argo CD
+Prometheus always has the simulator's climate gauges, including
+`grow_temperature_celsius` and `grow_vpd_kpa`. Additional controller, probe,
+and port gauges are created only after a successful Home Assistant sample:
+
+- `grow_probe_temperature_celsius`, `grow_probe_humidity_percent`, `grow_probe_vpd_kpa`
+- `grow_controller_vpd_kpa`, `grow_controller_status`
+- `grow_port_current_power`, `grow_port_status` (labeled by device)
+
+## Run the Kubernetes lab
 
 Requires Docker, k3d, kubectl, and Helm.
 
 ```bash
 ./scripts/bootstrap-k3d.sh
-# creates k3d cluster grow-room-dev (2 agents) and installs Argo CD
 kubectl apply -n argocd -f gitops/root-app.yaml
 kubectl -n argocd get applications
 ```
 
-Port-forward Argo CD with `kubectl -n argocd port-forward svc/argocd-server 8080:443`
-and open https://localhost:8080. The script prints the initial admin password
-when the secret still exists.
+The script creates `grow-room-dev` with two agents and installs Argo CD.
+To reach the Argo CD UI:
 
-`grow-room-root` syncs every Application under `gitops/apps/`
-(automated prune and self-heal):
+```bash
+kubectl -n argocd port-forward svc/argocd-server 8080:80
+```
 
-| Application | What Argo applies |
-|-------------|-------------------|
-| `sensor-service` | Helm chart `charts/sensor-service` into namespace `grow-room` (`SENSOR_SOURCE=simulator`) |
-| `monitoring` | kube-prometheus-stack `92.13.1` with `monitoring/values-k3d.yaml`, plus `monitoring/manifests/` |
+Open `http://localhost:8080` (HTTP). Port 443 with HTTPS resets TLS on this
+lab; the HTTP port on the service is the path that works. The bootstrap
+script prints the initial admin password while the secret is available.
 
-Smoke without Argo:
+The `grow-room-root` Application manages two child Applications:
+
+| Application | Responsibility |
+|-------------|----------------|
+| `sensor-service` | Helm chart in the `grow-room` namespace, using simulated readings |
+| `monitoring` | kube-prometheus-stack `92.13.1`, ServiceMonitor, alerts, and dashboard |
+
+Argo CD is configured to prune and self-heal resources based on the Git
+configuration. For a Helm-only smoke test without Argo:
 
 ```bash
 helm upgrade --install sensor ./charts/sensor-service -n grow-room --create-namespace \
   -f charts/sensor-service/values.yaml -f charts/sensor-service/values-k3d.yaml
 ```
 
-## CI, GitOps, Terraform
+## CI/CD and Terraform
 
-**CI** (`.github/workflows/ci.yml`) on pull requests and pushes to `main`:
-Ruff, pytest with coverage fail-under 80, then a Buildx image. Pushes to
-`main` publish `ghcr.io/tontoblanco/grow-room-platform` tagged with the commit
-SHA and `latest`. The same job runs Trivy against
-`ghcr.io/tontoblanco/grow-room-platform:latest` at CRITICAL and HIGH
-(`ignore-unfixed`, exit code 1).
+**GitHub Actions CI** (`.github/workflows/ci.yml`) runs Ruff and pytest with a
+coverage threshold of 80%. A Buildx job creates the container image. Pushes
+to `main` publish the commit-SHA and `latest` tags to
+`ghcr.io/tontoblanco/grow-room-platform`. Trivy scans the `latest` image and
+fails the job on unfixed HIGH or CRITICAL findings.
 
-**GitOps bump** (`.github/workflows/gitops-bump.yml`) runs after CI succeeds on
-`main` and opens a PR that sets `image.tag` in
-`charts/sensor-service/values.yaml` to `sha-<7-char>`. Merging that PR is the
-deploy. Argo tracks `HEAD` of this repo.
+**GitOps deployment** (`.github/workflows/gitops-bump.yml`) runs after a
+successful CI workflow on `main`. It opens a PR to update `image.tag` in
+`charts/sensor-service/values.yaml` to `sha-<7-char>`. Merging that PR changes
+the desired state; Argo CD then synchronizes the cluster. It is not an
+unreviewed automatic deployment.
 
-**Terraform** (`infra/`, `.github/workflows/terraform.yml`) is authorship and
-review, not a running cloud account. The workflow runs `terraform fmt`,
-`terraform init -backend=false`, `terraform validate`, and `tflint`
-(Terraform 1.9.8). It does not plan or apply.
+**Terraform** lives in `infra/`. The workflow runs `terraform fmt -check`,
+`terraform init -backend=false`, `terraform validate`, and `tflint` using
+Terraform 1.9.8. It does not run `plan` or `apply`.
 
-Checked-in defaults (`infra/variables.tf`, `infra/terraform.tfvars.example`):
+| Variable | Repo default | Meaning |
+|----------|--------------|---------|
+| `cluster_mode` | `local` | Local cluster output rather than the EKS branch |
+| `enable_eks` | `false` | Leaves the EKS-related IAM/security-group branch disabled |
+| `enable_nat_gateway` | `false` | Does not include the hourly-billed NAT gateway |
 
-| Variable | Default | Effect |
-|----------|---------|--------|
-| `cluster_mode` | `local` | Cluster module emits a k3d command and creates no AWS objects |
-| `enable_eks` | `false` | `true` forces the EKS branch even if `cluster_mode` is `local` |
-| `enable_nat_gateway` | `false` | NAT Gateway is the paid network piece; it stays off |
+The EKS branch is **not** a working EKS deployment: it has an IAM role and a
+security group but no `aws_eks_cluster` resource. The Terraform network
+module does define real AWS VPC, subnet, and internet-gateway resources.
+**Running `terraform apply` against the root module can create AWS resources,
+even with the local cluster default.** I left the apply step out of CI and
+included a reminder to configure a $20/month AWS Budgets alert before trying
+a paid deployment.
 
-The EKS branch is an IAM role and a security group (`count` is 0 on the local
-path). There is no `aws_eks_cluster` resource. The network module is real VPC,
-subnet, and internet-gateway code; CI validates it and no workflow applies it.
-`infra/backend.tf.example` is a commented S3 + DynamoDB stub. `budget_reminder`
-tells you to set an AWS Budgets alert at $20/month before any apply that turns
-on NAT or the EKS branch. This lab does not do that apply.
+More detail: [Terraform guide](docs/WEEK2_TERRAFORM_GUIDE.md) and
+[GitOps guide](docs/WEEK3_GITOPS_GUIDE.md).
 
-Details: [docs/WEEK2_TERRAFORM_GUIDE.md](docs/WEEK2_TERRAFORM_GUIDE.md),
-[docs/WEEK3_GITOPS_GUIDE.md](docs/WEEK3_GITOPS_GUIDE.md).
+## Monitoring
 
-## Observability
+Prometheus and Grafana run in the `monitoring` namespace. The laptop-oriented
+configuration uses 24-hour retention, a 30-second scrape interval, and single
+replicas.
 
-kube-prometheus-stack in namespace `monitoring`, values tuned for a laptop
-(24h retention, 30s scrape, single replicas, control-plane scrapes that k3d
-does not expose turned down).
+Prometheus has two scrape targets:
 
-Two scrapes:
+| Job | Data source |
+|-----|-------------|
+| `sensor-service` | In-cluster simulator through a ServiceMonitor |
+| `grow-room-ha-host` | Compose service on `host.k3d.internal:8000` using `additionalScrapeConfigs` |
 
-| Job | Target | Labels that matter |
-|-----|--------|--------------------|
-| ServiceMonitor `sensor-service` | In-cluster Service, namespace `grow-room`, `/metrics` | `job="sensor-service"` (simulator) |
-| `grow-room-ha-host` | `host.k3d.internal:8000` via `additionalScrapeConfigs` | `instance="docker-compose-sensor-service"`, `sensor_source="homeassistant"` |
-
-k3d injects `host.k3d.internal` into CoreDNS, so Prometheus pods reach the
-Compose port on the Docker host. Pod `prometheus.io/*` annotations stay on the
-chart as documentation. Annotation-based pod discovery is off; the operator
-uses the ServiceMonitor plus that one static job.
-
-`sensor_source=homeassistant` is how the board stays readable. Controller,
-probe, and port panels select that label and aggregate with `max by
-(sensor_source)` or `max by (device)`, so each line is one series. The Scrape
-up stat uses `max by (job)` on `sensor-service|grow-room-ha-host`, so a rolled
-pod does not leave its own DOWN tile. Tests in `tests/test_grafana_dashboard.py`
-lock both queries. Panels that need a Home Assistant sample show **No HA
-sample** until `grow-room-ha-host` is UP.
+The second job has `sensor_source="homeassistant"` and
+`instance="docker-compose-sensor-service"` labels. The dashboard uses those
+labels to keep the live controller and probe readings separate from simulated
+readings. It also groups scrape health by job so an old pod does not leave
+extra DOWN tiles after a rollout. Tests in `tests/test_grafana_dashboard.py`
+check the queries.
 
 ```bash
 kubectl -n monitoring port-forward svc/monitoring-prometheus 9090:9090
 kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
 ```
 
-Grafana login for this lab is `admin` / `grow-room-lab` (localhost only; it is
-set in `monitoring/values-k3d.yaml`). Prometheus targets:
-`http://127.0.0.1:9090/targets`. Confirm job `grow-room-ha-host` is UP, then
-`grow_probe_temperature_celsius{job="grow-room-ha-host"}`.
+Prometheus targets: `http://127.0.0.1:9090/targets`.
+Grafana: `http://127.0.0.1:3000` (lab credentials `admin` / `grow-room-lab`).
+The dashboard is **Grow-room VPD**, uid `grow-room-vpd`. Live-only panels show
+**No HA sample** until Home Assistant has supplied readings and the host
+scrape is UP.
 
-The dashboard ConfigMap is
-`monitoring/manifests/grafana-dashboard-grow-room-vpd.yaml` (same JSON as
-`monitoring/dashboards/grow-room-vpd.json`). The Grafana sidecar loads
-ConfigMaps labeled `grafana_dashboard=1`. Lab steps, DNS fallbacks, and reload
-notes: [docs/WEEK4_OBSERVABILITY_GUIDE.md](docs/WEEK4_OBSERVABILITY_GUIDE.md)
-Steps 4e and 5.
+This lab defines two starting-point SLOs for the in-cluster simulator:
 
-**SLOs** (lab starting points, in-cluster simulator job):
-[monitoring/docs-slo.md](monitoring/docs-slo.md).
+- **Scrape availability:** 99% successful scrapes over seven days.
+- **Prometheus sample freshness:** `grow_vpd_kpa` samples no older than 120
+  seconds for 99% of observations over seven days. This checks sample age,
+  not whether a physical sensor has stopped changing its value.
 
-- Ingest availability: 99% of scrapes of `up{job="sensor-service"}` over 7 days.
-  The host job is a different series and does not burn this budget.
-- Data freshness: `grow_vpd_kpa` timestamp within 120 seconds for 99% of
-  samples over 7 days.
-
-**Alerts** (`monitoring/manifests/grow-room-prometheusrule.yaml`):
-`GrowRoomSensorScrapeDown` (`up{job="sensor-service"} == 0` for 2m),
-`GrowRoomHumidityOutOfRange` (under 30% or over 80% for 5m),
-`GrowRoomSensorPodRestarts` (more than 2 restarts in 15m). The humidity rule
-matches the gauge with no job filter, so both scrapes can fire it. Runbook:
-[monitoring/docs-slo.md](monitoring/docs-slo.md) and the anchor in the Week 4 guide.
+There are also alerts for sensor scrape failures (2 minutes), humidity outside
+30–80% (5 minutes), and more than two sensor container restarts in 15 minutes.
+The humidity rule applies to any matching series, including live and
+simulated readings. See [monitoring/docs-slo.md](monitoring/docs-slo.md) and
+the [observability guide](docs/WEEK4_OBSERVABILITY_GUIDE.md).
 
 ## Audit log
 
-`/audit` is a personal model of seed-to-sale evidence on the same FastAPI
-process. It is not a METRC client and it does not call a state traceability
-API.
+The `/audit` routes let me practice event history and integrity checks using
+a plant/batch model. This is **not** a state compliance system or a METRC
+integration.
 
-- Batches and plants. A new plant starts in `seedling` and writes a birth event.
-- Finite state machine: `seedling` → `vegetative` → `flowering` → `harvested` →
-  `packaged`. `destroyed` is reachable from any live state and then terminal.
-  Illegal edges return 409.
-- Events are insert-only. `PUT`, `PATCH`, and `DELETE` on `/audit/events/{id}`
-  return 405.
-- Each event stores `prev_hash` and a SHA-256 `event_hash`. `GET /audit/integrity`
-  recomputes the chain.
-- The plant row is the current projection. The event table is the record.
+A plant follows these states:
 
-Default file is `./data/audit.db`. Compose and the Helm chart point
-`AUDIT_DB_PATH` at `/tmp/audit.db` because the container is non-root with a
-read-only root filesystem (`emptyDir` on `/tmp`). That file does not survive
-a new container. `charts/snippets/audit-sqlite-pvc.yaml` is an optional PVC
-snippet; the chart does not mount it.
+`seedling` → `vegetative` → `flowering` → `harvested` → `packaged`
+
+`destroyed` is allowed from any non-terminal state. Invalid transitions
+return 409. The API rejects `PUT`, `PATCH`, and `DELETE` requests against
+stored events with 405 responses.
+
+Each event records its previous event's hash and its own SHA-256 hash.
+`GET /audit/integrity` recomputes the chain to detect inconsistencies. The
+plant table holds the current state; the event table holds the history.
 
 ```bash
 curl -s localhost:8000/audit/batches -X POST -H 'content-type: application/json' \
   -d '{"name":"tent-a","strain":"demo"}'
 ```
 
-Guide: [docs/WEEK5_AUDIT_LOG_GUIDE.md](docs/WEEK5_AUDIT_LOG_GUIDE.md).
-Interview limits (no STIG claim, no ATO): [docs/WEEK5_COMPLIANCE_NOTES.md](docs/WEEK5_COMPLIANCE_NOTES.md).
+By default the local database is `./data/audit.db`. Docker Compose and the
+Helm chart use `/tmp/audit.db` so the non-root container can write to it. In
+k3d, that database is on an `emptyDir` and **does not survive replacement of
+the pod**. There is an example PVC at
+`charts/snippets/audit-sqlite-pvc.yaml`, but it is not wired into the chart.
+The hash chain is useful for learning and checking consistency; it is not
+immutable storage or proof of who performed an action.
 
-## Where to look
+See the [audit guide](docs/WEEK5_AUDIT_LOG_GUIDE.md) and
+[compliance notes](docs/WEEK5_COMPLIANCE_NOTES.md).
 
-| Path | Role |
-|------|------|
-| `sensor_service/` | FastAPI app, VPD math, Home Assistant and simulator sources, `audit/` |
-| `tests/` | API, VPD, HA fixtures, audit chain, dashboard query locks |
-| `charts/sensor-service/` | Helm chart (non-root, read-only root, dropped capabilities, `/healthz` probes) |
-| `gitops/` | Argo CD root app and child Applications |
-| `monitoring/` | k3d Helm values, ServiceMonitor, PrometheusRule, VPD dashboard, SLOs |
-| `infra/` | Terraform network + cluster modules |
-| `scripts/bootstrap-k3d.sh` | Local cluster and Argo CD install |
-| `docs/` | Week guides and [CAPSTONE.md](docs/CAPSTONE.md) |
+## Security and scope
 
-The chart runs as uid 10001, `readOnlyRootFilesystem: true`,
-`allowPrivilegeEscalation: false`, capabilities dropped, seccomp
-`RuntimeDefault`, and a ServiceAccount with token automount off. The image is
-`python:3.12-slim`.
+The Helm chart uses a non-root user (uid 10001), a read-only root filesystem,
+`allowPrivilegeEscalation: false`, dropped Linux capabilities, seccomp
+`RuntimeDefault`, resource limits, health probes, and a ServiceAccount with
+token automount disabled.
+
+Those settings are a starting point for learning container hardening. This
+project has no ATO, STIG assessment, FedRAMP authorization, production EKS
+cluster, external state traceability integration, or durable multi-node audit
+store. I would rather show exactly what I implemented than claim controls I
+didn't test.
+
+## Repository layout
+
+| Path | Contents |
+|------|----------|
+| `sensor_service/` | FastAPI app, data sources, VPD math, and audit implementation |
+| `tests/` | API, math, Home Assistant fixture, audit, and dashboard tests |
+| `charts/sensor-service/` | Helm chart |
+| `gitops/` | Argo CD root and child Applications |
+| `monitoring/` | Prometheus/Grafana configuration, SLOs, dashboard, and alerts |
+| `infra/` | Terraform modules and examples |
+| `scripts/bootstrap-k3d.sh` | Local k3d bootstrap |
+| `docs/` | Build guides, compliance notes, and the [capstone write-up](docs/CAPSTONE.md) |
 
 ## License
 
