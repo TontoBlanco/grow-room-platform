@@ -1,0 +1,63 @@
+# PrometheusRule CR — same groups you would put under additionalPrometheusRulesMap,
+# but as a first-class object Argo syncs from monitoring/manifests (copied here for
+# readability; the live object is monitoring/manifests/grow-room-prometheusrule.yaml).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  name: grow-room-sensor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: grow-room-platform
+    # With ruleSelectorNilUsesHelmValues: false, no release label is required.
+    release: monitoring
+spec:
+  groups:
+    - name: grow-room.sensor
+      rules:
+        - alert: GrowRoomSensorScrapeDown
+          expr: up{job="sensor-service"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            room: grow-room
+          annotations:
+            summary: "sensor-service Prometheus target is down"
+            description: >-
+              Prometheus has failed to scrape job=sensor-service for more than
+              2 minutes. Check the Pod, Service, and ServiceMonitor.
+            runbook_url: "docs/WEEK4_OBSERVABILITY_GUIDE.md#runbook-sensor-scrape-down"
+
+        - alert: GrowRoomHumidityOutOfRange
+          expr: |
+            grow_humidity_percent < 30
+            or
+            grow_humidity_percent > 80
+          for: 5m
+          labels:
+            severity: warning
+            room: grow-room
+          annotations:
+            summary: "Grow-room humidity outside 30–80% band"
+            description: >-
+              Humidity is {{ $value }}%. Sustained excursions stress plants and
+              raise mold risk. Verify sensors and HVAC/dehumidifier setpoints.
+
+        - alert: GrowRoomSensorPodRestarts
+          expr: |
+            increase(
+              kube_pod_container_status_restarts_total{
+                namespace="grow-room",
+                container="sensor-service"
+              }[15m]
+            ) > 2
+          for: 0m
+          labels:
+            severity: warning
+            room: grow-room
+          annotations:
+            summary: "sensor-service container restarted more than twice in 15m"
+            description: >-
+              Restart churn usually means CrashLoop, OOM, or probe failures.
+              Run: kubectl -n grow-room describe pod -l app.kubernetes.io/name=sensor-service

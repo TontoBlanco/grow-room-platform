@@ -1,0 +1,47 @@
+# Child Application: kube-prometheus-stack on k3d via Argo multi-source.
+# Source 1 = upstream Helm chart. Source 2 ($values) = this repo's values file.
+# Source 3 = plain manifests (ServiceMonitor, PrometheusRule, Grafana dashboard CM).
+#
+# After merge to GitHub, grow-room-root picks this up once listed in
+# gitops/apps/kustomization.yaml (or as a loose YAML sibling — Argo directory
+# sync already applies every Application YAML under gitops/apps/).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      # Pin so portfolio demos do not drift overnight. Bump deliberately.
+      targetRevision: 92.13.1
+      helm:
+        releaseName: monitoring
+        valueFiles:
+          - $values/monitoring/values-k3d.yaml
+    - repoURL: https://github.com/TontoBlanco/grow-room-platform.git
+      targetRevision: HEAD
+      ref: values
+    - repoURL: https://github.com/TontoBlanco/grow-room-platform.git
+      targetRevision: HEAD
+      path: monitoring/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # Large CRDs + CR updates: server-side apply avoids last-applied annotation limits.
+      - ServerSideApply=true
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jqPathExpressions:
+        - .spec.conversion.webhook.clientConfig.caBundle

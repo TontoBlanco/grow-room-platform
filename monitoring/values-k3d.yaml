@@ -1,0 +1,137 @@
+# kube-prometheus-stack values tuned for a small k3d lab ($0).
+# Used by gitops/apps/monitoring.yaml (Argo multi-source Helm + this file).
+#
+# Goals:
+# - Fit in laptop RAM (disable noisy control-plane scrapes k3d does not expose)
+# - Discover ServiceMonitors / PrometheusRules cluster-wide (not only Helm-owned ones)
+# - Keep Alertmanager + Grafana so you can fire a test alert and open a VPD board
+
+fullnameOverride: monitoring
+
+# Default kube-* rules assume cloud control-plane endpoints. k3d hides most of them.
+defaultRules:
+  create: true
+  rules:
+    etcd: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeControllerManager: false
+    kubeProxy: false
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+grafana:
+  enabled: true
+  adminPassword: grow-room-lab  # lab only; change if you expose beyond localhost
+  defaultDashboardsEnabled: true
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  service:
+    type: ClusterIP
+
+# Operator + Prometheus are the heavy bits — keep retention and resources tiny.
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+    replicas: 1
+    retention: 24h
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    # Pick up ServiceMonitors / PodMonitors / PrometheusRules from any namespace,
+    # including grow-room (sensor ServiceMonitor) and monitoring (grow-room rules).
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorNamespaceSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    ruleNamespaceSelector: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 768Mi
+    storageSpec: {}  # emptyDir via default; fine for disposable k3d
+
+# k3d often cannot scrape these securely / they do not exist — turn off to cut noise.
+kubeApiServer:
+  enabled: true
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubelet:
+  enabled: true
+
+# node-exporter + kube-state-metrics are useful and usually fine on k3d.
+nodeExporter:
+  enabled: true
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Optional: classic annotation-based scrape as a teaching fallback.
+# Prefer the ServiceMonitor in monitoring/manifests/ (operator-native).
+# Uncomment if you want prometheus.io/* annotations alone to work:
+#
+# prometheus:
+#   prometheusSpec:
+#     additionalScrapeConfigs:
+#       - job_name: kubernetes-pods-annotations
+#         kubernetes_sd_configs:
+#           - role: pod
+#         relabel_configs:
+#           - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+#             action: keep
+#             regex: true
+#           - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+#             action: replace
+#             target_label: __metrics_path__
+#             regex: (.+)
+#           - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+#             action: replace
+#             regex: ([^:]+)(?::\d+)?;(\d+)
+#             replacement: $1:$2
+#             target_label: __address__

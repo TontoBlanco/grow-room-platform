@@ -1,0 +1,26 @@
+# Tells the Prometheus Operator to scrape the grow-room sensor Service.
+# Lives in namespace monitoring (Argo Application destination) but selects
+# Endpoints in grow-room via namespaceSelector — like an Ingress in one ns
+# that routes to a Service in another.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  name: sensor-service
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: sensor-service
+    app.kubernetes.io/part-of: grow-room-platform
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sensor-service
+  namespaceSelector:
+    matchNames:
+      - grow-room
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

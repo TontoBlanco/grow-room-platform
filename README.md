@@ -32,8 +32,8 @@ flowchart LR
 - [x] **Week 1 (starter):** sensor service, tests, Dockerfile
 - [x] **Week 1:** GitHub Actions CI (lint, test, build and push to GHCR, Trivy)
 - [x] **Week 2:** Terraform modules authored from scratch (`infra/modules/network`, `infra/modules/cluster`); `fmt` / `validate` / `tflint` in CI; remote-state stub; AWS Budgets $20 alert before any paid apply — see [docs/WEEK2_TERRAFORM_GUIDE.md](docs/WEEK2_TERRAFORM_GUIDE.md)
-- [ ] **Week 3:** Helm chart + Argo CD GitOps on k3d (`charts/sensor-service`, `gitops/` app-of-apps); manual sync of image tag; CI bump later — see [docs/WEEK3_GITOPS_GUIDE.md](docs/WEEK3_GITOPS_GUIDE.md)
-- [ ] **Week 4:** Prometheus scraping `/metrics`, Grafana VPD dashboard, alerts
+- [x] **Week 3:** Helm chart + Argo CD GitOps on k3d (`charts/sensor-service`, `gitops/` app-of-apps); CI→GitOps `image.tag` bump — see [docs/WEEK3_GITOPS_GUIDE.md](docs/WEEK3_GITOPS_GUIDE.md)
+- [ ] **Week 4:** Prometheus + Grafana on k3d (kube-prometheus-stack via Argo); ServiceMonitor scrape of `/metrics`; VPD dashboard; alerts; two SLOs — see [docs/WEEK4_OBSERVABILITY_GUIDE.md](docs/WEEK4_OBSERVABILITY_GUIDE.md)
 - [ ] **Week 5:** Hardening, docs, Terraform Associate exam
 - [ ] **Optional:** K3s on a Raspberry Pi next to the tent (edge)
 
@@ -64,6 +64,22 @@ Helm + Argo CD under [`charts/`](charts/) and [`gitops/`](gitops/):
 Daily CD work defaults to **k3d** (no AWS cost). Promote by changing `image.tag`
 in Git; Argo syncs. Extend CI yourself later to open that bump as a PR
 ([docs/WEEK3_CI_NOTE.md](docs/WEEK3_CI_NOTE.md)).
+
+## Observability (Week 4+)
+
+kube-prometheus-stack under [`monitoring/`](monitoring/) + Argo Application
+[`gitops/apps/monitoring.yaml`](gitops/apps/monitoring.yaml):
+
+| Path | Purpose |
+|------|---------|
+| `monitoring/values-k3d.yaml` | Small-footprint Helm values for k3d |
+| `monitoring/manifests/` | ServiceMonitor, PrometheusRule, Grafana dashboard ConfigMap |
+| `monitoring/dashboards/grow-room-vpd.json` | Temp / humidity / VPD / scrape health |
+| `monitoring/docs-slo.md` | Ingest availability + data freshness SLOs; scrape-down runbook |
+
+Prometheus scrapes the sensor Service via a **ServiceMonitor** (operator-native).
+Pod `prometheus.io/*` annotations from Week 3 remain as documentation. Daily lab
+work stays on **k3d** (no AWS cost).
 
 ## API
 
