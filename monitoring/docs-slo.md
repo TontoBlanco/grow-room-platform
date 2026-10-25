@@ -20,6 +20,11 @@ succeed over a rolling 7-day window.
 cannot fire. Availability of *telemetry ingest* is the platform concern;
 plant outcomes are a product concern on top.
 
+The Docker Compose Home Assistant scrape is a different job,
+`up{job="grow-room-ha-host"}` (see Week 4 Step 4e). It is not this indicator.
+A down host target does not by itself burn SLO 1, and a down in-cluster
+simulator does not by itself clear the **No HA sample** panels.
+
 **Rough PromQL for a burn view (1h):**
 
 ```promql
