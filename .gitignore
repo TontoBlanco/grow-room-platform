@@ -11,3 +11,7 @@ coverage.xml
 htmlcov/
 .env
 *.zip
+# Local Home Assistant config (tokens, secrets) and the sqlite audit log.
+ha-config/
+data/
+*.db

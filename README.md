@@ -86,8 +86,8 @@ work stays on **k3d** (no AWS cost).
 | Endpoint    | Description |
 |-------------|-------------|
 | `/healthz`  | Liveness check |
-| `/readings` | Latest temp (°C/°F), humidity %, VPD kPa, CO2 ppm |
-| `/metrics`  | Prometheus metrics (`grow_temperature_celsius`, `grow_vpd_kpa`, ...) |
+| `/readings` | Controller air temp (°C/°F), humidity %, computed VPD kPa, CO2 ppm, plus `controller`, `probe`, and `ports` |
+| `/metrics`  | Prometheus metrics (`grow_temperature_celsius`, `grow_vpd_kpa`, probe gauges, ...) |
 | `/docs`     | Interactive OpenAPI docs |
 
 VPD uses the Tetens equation. Set `LEAF_TEMP_OFFSET_C` (e.g. `-2.0`) for leaf VPD.
@@ -113,23 +113,49 @@ curl localhost:8000/readings
 AC Infinity has no official public API. The community
 [homeassistant-acinfinity](https://github.com/dalinicus/homeassistant-acinfinity)
 integration pulls controller data into Home Assistant (the AI+ is supported over Wi-Fi).
-This service then **reads** those entities through HA's REST API. It only sends GET
-requests and never changes your tent settings.
+This service then **reads** those entities through HA's REST API (`GET /api/states/<entity_id>` only).
 
-1. Run Home Assistant (HA OS, or uncomment the service in `docker-compose.yml`).
+`docker-compose.yml` runs Home Assistant as a sibling service (`./ha-config:/config`,
+port 8123). `sensor-service` reaches it at `http://homeassistant:8123`. The audit
+database path in compose is `AUDIT_DB_PATH=/tmp/audit.db` because the image user
+cannot create `./data`. Start the sensor service alone with
+`docker compose up sensor-service` when you want the simulator and no HA container.
+
+1. `docker compose up`, then open http://localhost:8123 and finish HA onboarding.
 2. Install [HACS](https://hacs.xyz/), then add the AC Infinity integration and sign in
    with your AC Infinity app account.
 3. In HA: profile, then Security, then **Long-lived access tokens**; create one.
-4. Find your entity IDs under Settings, Devices & services, AC Infinity.
-5. `cp .env.example .env` and set:
+4. `cp .env.example .env` and set:
    ```
    SENSOR_SOURCE=homeassistant
-   HA_URL=http://homeassistant.local:8123
+   HA_URL=http://homeassistant:8123
    HA_TOKEN=<your token>
-   HA_TEMP_ENTITY=sensor.<your_controller>_temperature
-   HA_HUMIDITY_ENTITY=sensor.<your_controller>_humidity
    ```
-6. `docker compose up`. `.env` is git-ignored; never commit your token.
+5. `docker compose up` again. `.env` and `ha-config/` are git-ignored; never commit the token.
+
+The Garden (UIS Controller AI+ and the internal probe) is the default entity map
+when `HA_DEVICE_PREFIX=the_garden`:
+
+| Reading | Entity |
+|---------|--------|
+| Controller air temp / humidity | `sensor.the_garden_controller_temperature`, `sensor.the_garden_controller_humidity` |
+| Controller VPD and status | `sensor.the_garden_controller_vpd`, `binary_sensor.the_garden_status` |
+| Internal probe temp / humidity / VPD | `sensor.the_garden_probe_sensor_probe_temperature`, `sensor.the_garden_probe_sensor_probe_humidity`, `sensor.the_garden_probe_sensor_probe_vpd` |
+| Active devices (`port_1`, `humidifier`, `oscillating_fans`, `ventilation_fan`) | `binary_sensor.the_garden_<device>_status`, `binary_sensor.the_garden_<device>_state`, `sensor.the_garden_<device>_current_power`, `select.the_garden_<device>_active_mode` |
+
+Ports 4–7 stay off the default list. Add a slug to `HA_PORT_DEVICES` when
+one of those ports is in use. Blank an `HA_*_ENTITY` variable to skip that sensor.
+Number triggers, enable switches, and schedules stay in Home Assistant.
+
+`/readings` keeps the original top-level fields (`temperature_c`, `humidity_percent`,
+computed `vpd_kpa`, `co2_ppm`, …). Home Assistant's controller and probe VPD are
+often reported in **psi**; those values are converted to `controller.vpd_kpa` and
+`probe.vpd_kpa`, and the original number and unit are returned as `vpd_raw` /
+`vpd_unit`. Computed `vpd_kpa` still comes from air temperature, humidity, and
+`LEAF_TEMP_OFFSET_C`. Prometheus adds `grow_probe_temperature_celsius`,
+`grow_probe_humidity_percent`, `grow_probe_vpd_kpa`, `grow_controller_vpd_kpa`,
+`grow_controller_status`, `grow_port_current_power`, and `grow_port_status` when
+those readings exist.
 
 The simulator stays the default, so CI and demos never need your network.
 

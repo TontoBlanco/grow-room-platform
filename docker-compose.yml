@@ -7,19 +7,46 @@ services:
     environment:
       SENSOR_SOURCE: ${SENSOR_SOURCE:-simulator}
       LEAF_TEMP_OFFSET_C: ${LEAF_TEMP_OFFSET_C:-0}
-      HA_URL: ${HA_URL:-}
-      HA_TOKEN: ${HA_TOKEN:-}          # set in .env, never hardcode
-      HA_TEMP_ENTITY: ${HA_TEMP_ENTITY:-sensor.grow_tent_temperature}
-      HA_HUMIDITY_ENTITY: ${HA_HUMIDITY_ENTITY:-sensor.grow_tent_humidity}
+      # The image runs as non-root (uid 10001). AuditStore creates the parent
+      # directory of AUDIT_DB_PATH, and ./data is not writable inside the
+      # container. /tmp already exists and is writable.
+      # To keep the audit log across restarts, mount a directory writable by
+      # uid 10001 and point AUDIT_DB_PATH at a file on that mount, for example
+      # AUDIT_DB_PATH=/var/audit/audit.db with ./data:/var/audit.
+      AUDIT_DB_PATH: ${AUDIT_DB_PATH:-/tmp/audit.db}
+      # Sibling Home Assistant service below. Override for HA on another host.
+      HA_URL: "${HA_URL:-http://homeassistant:8123}"
+      HA_TOKEN: ${HA_TOKEN:-} # set in .env, never hardcode
+      HA_DEVICE_PREFIX: ${HA_DEVICE_PREFIX:-the_garden}
+      # The Garden — UIS Controller AI+ (CTR89Q) and the internal AC-SPC24 probe.
+      HA_TEMP_ENTITY: ${HA_TEMP_ENTITY:-sensor.the_garden_controller_temperature}
+      HA_HUMIDITY_ENTITY: ${HA_HUMIDITY_ENTITY:-sensor.the_garden_controller_humidity}
+      HA_VPD_ENTITY: ${HA_VPD_ENTITY:-sensor.the_garden_controller_vpd}
+      HA_STATUS_ENTITY: ${HA_STATUS_ENTITY:-binary_sensor.the_garden_status}
+      HA_PROBE_TEMP_ENTITY: ${HA_PROBE_TEMP_ENTITY:-sensor.the_garden_probe_sensor_probe_temperature}
+      HA_PROBE_HUMIDITY_ENTITY: ${HA_PROBE_HUMIDITY_ENTITY:-sensor.the_garden_probe_sensor_probe_humidity}
+      HA_PROBE_VPD_ENTITY: ${HA_PROBE_VPD_ENTITY:-sensor.the_garden_probe_sensor_probe_vpd}
+      HA_CO2_ENTITY: ${HA_CO2_ENTITY:-}
+      # Active UIS devices only. Ports 4–7 are unused; add a slug when one is
+      # plugged in (port_4, port_5, port_6, port_7).
+      HA_PORT_DEVICES: ${HA_PORT_DEVICES:-port_1,humidifier,oscillating_fans,ventilation_fan}
     restart: unless-stopped
 
-  # Optional: run Home Assistant locally to bridge your AC Infinity controller.
-  # Uncomment, start it, open http://localhost:8123, install the AC Infinity
-  # integration via HACS, then set SENSOR_SOURCE=homeassistant in .env.
-  # homeassistant:
-  #   image: ghcr.io/home-assistant/home-assistant:stable
-  #   volumes:
-  #     - ./ha-config:/config
-  #   ports:
-  #     - "8123:8123"
-  #   restart: unless-stopped
+  # Local Home Assistant sidecar for the AC Infinity UIS integration
+  # (dalinicus/homeassistant-acinfinity, installed through HACS). The
+  # controller syncs over the AC Infinity cloud account, so this container
+  # stays on the compose network and publishes 8123. sensor-service reads it
+  # at http://homeassistant:8123 with GET /api/states only.
+  #
+  # First run: open http://localhost:8123, finish onboarding, install HACS,
+  # add the AC Infinity integration, then create a long-lived token and put
+  # it in .env as HA_TOKEN. ha-config/ holds HA secrets — it is gitignored.
+  #
+  # Simulator only (skip this container): docker compose up sensor-service
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    volumes:
+      - ./ha-config:/config
+    ports:
+      - "8123:8123"
+    restart: unless-stopped

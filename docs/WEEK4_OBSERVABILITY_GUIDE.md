@@ -19,7 +19,10 @@ You already know Deployments, Services, and Argo sync. This week adds the
 monitoring *control plane* that watches those objects. The sensor chart already
 exposes Prometheus gauges (`grow_temperature_celsius`, `grow_humidity_percent`,
 `grow_vpd_kpa`, …) and carries `prometheus.io/*` pod annotations — Week 4 wires
-the scraper and the UI.
+the scraper and the UI. With `SENSOR_SOURCE=homeassistant` the scrape can also
+include `grow_probe_temperature_celsius`, `grow_probe_humidity_percent`,
+`grow_controller_vpd_kpa` (device VPD converted to kPa), and
+`grow_port_current_power`.
 
 Try each step on the cluster before treating the Definition of Done as checked.
 
