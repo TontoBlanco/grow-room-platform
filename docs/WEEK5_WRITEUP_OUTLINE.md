@@ -1,8 +1,13 @@
 # Week 5 write-up outline (architecture + blog)
 
-Use this to draft the README architecture blurb and a short public post
-(LinkedIn / personal blog / Dev.to). Publish when *you* are ready — publishing
-is part of the canvas Definition of Done and cannot be automated from this pack.
+The drafted portfolio page is the repo [README](../README.md). The long
+architecture write-up, ready to edit into a post, is [CAPSTONE.md](CAPSTONE.md).
+Living diagram (Atlas owns the page):
+[Grow-room Platform Map](https://cursor.com/canvas/store-6a197a3b-901d-4b50-9079-9a539befde02/debaff3b-9e35-48ab-bab0-59761b62fb09).
+
+Use the sections below as the publishing checklist. Publish when *you* are
+ready — posting is part of the canvas Definition of Done and cannot be
+automated from this pack.
 
 ---
 
