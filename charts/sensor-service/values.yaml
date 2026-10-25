@@ -75,11 +75,21 @@ probes:
 env:
   SENSOR_SOURCE: simulator
   LEAF_TEMP_OFFSET_C: "0"
+  # Non-root + readOnlyRootFilesystem cannot create ./data. /tmp is an emptyDir.
+  AUDIT_DB_PATH: /tmp/audit.db
   # Home Assistant path (off by default). When SENSOR_SOURCE=homeassistant,
   # set HA_URL / HA_* entities and inject HA_TOKEN from a Secret (not plain values).
+  # The Garden (AC Infinity Controller AI+ and internal probe):
   # HA_URL: "http://homeassistant.default.svc:8123"
-  # HA_TEMP_ENTITY: sensor.grow_tent_temperature
-  # HA_HUMIDITY_ENTITY: sensor.grow_tent_humidity
+  # HA_DEVICE_PREFIX: the_garden
+  # HA_TEMP_ENTITY: sensor.the_garden_controller_temperature
+  # HA_HUMIDITY_ENTITY: sensor.the_garden_controller_humidity
+  # HA_VPD_ENTITY: sensor.the_garden_controller_vpd
+  # HA_STATUS_ENTITY: binary_sensor.the_garden_status
+  # HA_PROBE_TEMP_ENTITY: sensor.the_garden_probe_sensor_probe_temperature
+  # HA_PROBE_HUMIDITY_ENTITY: sensor.the_garden_probe_sensor_probe_humidity
+  # HA_PROBE_VPD_ENTITY: sensor.the_garden_probe_sensor_probe_vpd
+  # HA_PORT_DEVICES: port_1,humidifier,oscillating_fans,ventilation_fan
 
 autoscaling:
   enabled: false
