@@ -10,8 +10,6 @@ See docs/WEEK5_AUDIT_LOG_GUIDE.md and docs/main_patch.md.
 
 from __future__ import annotations
 
-import os
-
 from fastapi import APIRouter, HTTPException
 
 from sensor_service.audit.models import (
@@ -26,8 +24,9 @@ from sensor_service.audit.store import AuditStore, ConflictError, NotFoundError
 
 
 def create_audit_router(store: AuditStore | None = None) -> APIRouter:
-    db_path = os.environ.get("AUDIT_DB_PATH")
-    audit = store or AuditStore(db_path=db_path)
+    # from_env keeps SQLite unless AUDIT_DATABASE_URL (or a postgres
+    # DATABASE_URL) is set. Callers that pass a store choose the backend.
+    audit = store if store is not None else AuditStore.from_env()
     router = APIRouter(prefix="/audit", tags=["audit"])
 
     @router.post("/batches", response_model=Batch, status_code=201)

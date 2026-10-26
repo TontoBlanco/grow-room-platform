@@ -15,7 +15,13 @@ Optional CI polish (you author it yourself when the module is merged):
 4. **Keep Trivy** — image scan you already run in Week 1 CI still applies; Week 5
    compliance notes treat that as the SBOM-adjacent check you already have.
 
-Until then: merge the audit module by PR, run pytest locally, verify
-`/audit/integrity` by hand. That is a valid Week 5 code done state.
+The repo's `.github/workflows/ci.yml` test job runs the whole suite, including
+Postgres audit tests, against a `postgres:16` service container.
+`AUDIT_TEST_DATABASE_URL` is set only for that step. When it is unset, those
+tests skip and the SQLite path still runs. That container is GitHub-hosted CI.
+It is not RDS.
+
+Locally, `pytest` is enough without Postgres. Verify `/audit/integrity` by
+hand when you want to see the chain.
 
 See `docs/WEEK5_AUDIT_LOG_GUIDE.md` for the teaching path.

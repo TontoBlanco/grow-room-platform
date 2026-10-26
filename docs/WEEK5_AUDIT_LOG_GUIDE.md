@@ -16,9 +16,8 @@ By the end of the week you have:
 4. **Compliance notes** (STIG-style hardening, SBOM/signing, least privilege)
    you can defend in interviews — educational talking points only.
 5. A **write-up outline** (architecture diagram + blog skeleton) ready to publish.
-6. Still **$0** cloud — SQLite on disk (or optional Postgres later via the
-   compose/k3d stack you already have). No `terraform apply` against a real
-   AWS account for this week.
+6. Still **$0** cloud — SQLite by default, optional local Postgres via Compose.
+   No RDS. No `terraform apply` against a real AWS account for this week.
 
 You already know Deployments, Services, Argo sync, and Prometheus scrapes.
 This week adds an **immutable evidence trail** next to the mutable live objects
@@ -236,11 +235,33 @@ curl -s localhost:8000/audit/plants/$PLANT_ID/history | jq .
 curl -s localhost:8000/audit/integrity | jq .
 ```
 
-### Optional Postgres later
+### Optional Postgres (local, still $0)
 
-Not required for Week 5. When you want it: add a SQLAlchemy/psycopg store
-behind the same `AuditStore` interface, point docker-compose at Postgres, keep
-SQLite as the default for CI. Do **not** stand up RDS for this lab.
+SQLite stays the default for local runs, k3d, and any pytest invocation that
+does not set a database URL. To use Postgres for `/audit`:
+
+```bash
+pip install -e '.[postgres]'
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
+```
+
+Or point an already-running database at the process:
+
+```bash
+export AUDIT_DATABASE_URL=postgresql://audit:audit@localhost:5432/audit
+```
+
+`AUDIT_DATABASE_URL` wins over `DATABASE_URL` and over `AUDIT_DB_PATH`. A
+`DATABASE_URL` is used only when it already starts with `postgres://` or
+`postgresql://`. The schema is `batches`, `plants` (current state), and
+`events` (append-only hash chain) with foreign keys, state checks, and indexes
+for plant history and batch/state lookups. Postgres appends take one
+advisory lock on the chain tail. CI covers this with a Postgres service
+container and `AUDIT_TEST_DATABASE_URL`; without that variable the Postgres
+tests skip.
+
+Do **not** stand up RDS for this lab. Postgres does not make the log WORM,
+does not verify the `actor`, and is not a METRC integration.
 
 ### Optional PVC on k3d
 
@@ -321,10 +342,14 @@ Out of scope for "code done":
 3. **Tamper evidence:** "A SHA-256 hash chain lets `/audit/integrity` detect
    silent UPDATEs to historical rows; real deployments would add authn and
    WORM storage."
-4. **$0 lab discipline:** "SQLite locally, k3d for the platform weeks, Terraform
-   modules validated without applying paid EKS — budget as a first-class
-   control."
-5. **Security+ / cleared background without inventing jobs:** "I use the same
+4. **Relational model, same API:** "SQLite is the default. Postgres uses the
+   same three tables — projections for batches and plants, an append-only
+   event chain with foreign keys and a single writer lock on the hash tail.
+   k3d stays on SQLite. No RDS."
+5. **$0 lab discipline:** "SQLite locally, optional local Postgres, k3d for the
+   platform weeks, Terraform modules validated without applying paid EKS —
+   budget as a first-class control."
+6. **Security+ / cleared background without inventing jobs:** "I use the same
    vocabulary as authorization packages — evidence, attribution, integrity,
    least privilege — on a personal CEA portfolio so I can discuss it concretely."
 
