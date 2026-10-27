@@ -1,4 +1,4 @@
-"""FastAPI app: /healthz, /readings, /metrics."""
+"""FastAPI app: /healthz, /readings, /mood, /metrics."""
 
 from fastapi import FastAPI, HTTPException, Response
 from prometheus_client import (
@@ -11,6 +11,7 @@ from prometheus_client import (
 
 from sensor_service import __version__
 from sensor_service.config import build_source, leaf_offset_c
+from sensor_service.mood import BANDS, mood_for_vpd
 from sensor_service.sources import Source
 
 # Own registry so tests can build multiple apps without duplicate-metric errors.
@@ -18,6 +19,17 @@ registry = CollectorRegistry()
 TEMP_C = Gauge("grow_temperature_celsius", "Air temperature", registry=registry)
 HUMIDITY = Gauge("grow_humidity_percent", "Relative humidity", registry=registry)
 VPD = Gauge("grow_vpd_kpa", "Vapor pressure deficit", registry=registry)
+# Category code, not a quality ranking. Inactive bands are 0 so max() is current.
+PLANT_MOOD = Gauge(
+    "grow_room_plant_mood",
+    (
+        "Plant mood category from leaf VPD "
+        "(1 stressful humid, 2 muggy, 3 ideal, 4 too dry, 5 stressful dry). "
+        "Inactive bands are 0. Soft heuristic, not agronomy advice."
+    ),
+    ["band"],
+    registry=registry,
+)
 CO2 = Gauge("grow_co2_ppm", "CO2 concentration", registry=registry)
 READ_ERRORS = Counter("grow_read_errors", "Failed sensor reads", registry=registry)
 
@@ -91,6 +103,10 @@ def _publish_metrics(data: dict) -> None:
                 1.0 if port["status"] == "on" else 0.0,
             )
 
+    current = mood_for_vpd(data["vpd_kpa"])
+    for band in BANDS:
+        PLANT_MOOD.labels(band=band.band).set(band.score if band is current else 0)
+
 
 def create_app(source: Source | None = None, leaf_offset: float | None = None) -> FastAPI:
     app = FastAPI(title="grow-room sensor service", version=__version__)
@@ -113,6 +129,20 @@ def create_app(source: Source | None = None, leaf_offset: float | None = None) -
     @app.get("/readings")
     def readings() -> dict:
         return latest()
+
+    @app.get("/mood")
+    def mood() -> dict:
+        """Playful plant mood from the current leaf VPD.
+
+        Soft heuristic for a mixed tent, not agronomy advice.
+        """
+        data = latest()
+        current = mood_for_vpd(data["vpd_kpa"])
+        return current.to_dict(
+            vpd_kpa=data["vpd_kpa"],
+            temperature_c=data["temperature_c"],
+            humidity_percent=data["humidity_percent"],
+        )
 
     @app.get("/metrics")
     def metrics() -> Response:

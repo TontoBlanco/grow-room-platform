@@ -13,6 +13,7 @@ EXPORTED = {
     "grow_temperature_celsius",
     "grow_humidity_percent",
     "grow_vpd_kpa",
+    "grow_room_plant_mood",
     "grow_co2_ppm",
     "grow_read_errors",
     "grow_controller_vpd_kpa",
@@ -116,6 +117,27 @@ def test_original_vpd_panels_keep_their_queries_and_layout():
     assert [target["expr"] for target in panels[7]["targets"]] == ["grow_co2_ppm"]
     for panel_id, grid in ORIGINAL_GRIDS.items():
         assert panels[panel_id]["gridPos"] == grid
+
+
+def test_plant_mood_panel_sits_between_co2_and_the_controller_row():
+    """One stat per scrape job, from the gauge, not from the JSON endpoint."""
+    panels = {panel["id"]: panel for panel in _dashboard()["panels"]}
+    mood = panels[23]
+    co2 = panels[7]
+    controller_row = panels[8]
+    assert mood["type"] == "stat"
+    assert mood["title"] == "Plant mood"
+    assert [target["expr"] for target in mood["targets"]] == ["max by (job) (grow_room_plant_mood)"]
+    assert mood["targets"][0]["legendFormat"] == "{{job}}"
+    assert "heuristic" in mood["description"].lower()
+    assert "agronomy" in mood["description"].lower()
+    mapping = mood["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert mapping["3"]["text"] == "🌿 cozy"
+    assert mapping["1"]["text"] == "🫠 swampy"
+    assert mapping["5"]["text"] == "🥵 crispy"
+    assert co2["gridPos"]["y"] + co2["gridPos"]["h"] == mood["gridPos"]["y"]
+    assert mood["gridPos"]["y"] + mood["gridPos"]["h"] == controller_row["gridPos"]["y"]
+    assert mood["gridPos"] == {"h": 4, "w": 24, "x": 0, "y": 22}
 
 
 def test_scrape_panels_collapse_rolled_instances_to_one_series_per_job():

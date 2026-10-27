@@ -102,6 +102,12 @@ a configurable leaf-temperature offset (`LEAF_TEMP_OFFSET_C=-2.0` in the lab
 values). When Home Assistant returns VPD in psi, I convert it to kPa and
 preserve the original value and unit in the response.
 
+`GET /mood` is a thin observability UX layer on that same leaf VPD. It
+returns a playful band — muggy, ideal, too dry, or stressful on the humid or
+dry extreme — and the scrape exports `grow_room_plant_mood` so the Grow-room
+VPD dashboard can show the mood without calling the JSON endpoint. The bands
+are a soft mixed-tent heuristic, not agronomy advice and not a control signal.
+
 ## Why the monitoring stack scrapes the Docker host
 
 This was one of the more useful design problems in the project.
