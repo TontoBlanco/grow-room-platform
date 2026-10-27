@@ -41,7 +41,7 @@ monitoring stack.
 | Containers and CI | Docker image, Ruff, pytest with an 80% coverage threshold, GHCR publishing, and Trivy scanning |
 | Kubernetes and GitOps | k3d cluster, Helm chart, Argo CD app-of-apps, and image-tag update PRs |
 | Infrastructure as code | Terraform network and cluster modules checked with `fmt`, `validate`, and `tflint` |
-| Observability | Prometheus, Grafana Grow-room VPD dashboard, three alert rules, and two lab SLOs |
+| Observability | Prometheus, Grafana Grow-room VPD dashboard, plant-mood gauge, three alert rules, and two lab SLOs |
 | Audit history | SQLite-backed plant/batch events with state-transition checks and a SHA-256 hash chain |
 
 I built this over five milestones, from the initial API and tests to GitOps,
@@ -134,6 +134,7 @@ not stored in the Helm values or monitoring configuration.
 |----------|---------|
 | `GET /healthz` | Health check |
 | `GET /readings` | Temperature (°C/°F), humidity, computed VPD (kPa), optional CO2, controller/probe details, and device ports |
+| `GET /mood` | Playful plant mood from the current leaf VPD (soft heuristic, not agronomy advice) |
 | `GET /metrics` | Prometheus metrics |
 | `GET /docs` | FastAPI OpenAPI documentation |
 | `/audit/...` | Batches, plants, state changes, event history, and integrity checks |
@@ -145,12 +146,38 @@ API provides a converted kPa value and preserves the original value and unit
 as `vpd_raw` and `vpd_unit`.
 
 Prometheus always has the simulator's climate gauges, including
-`grow_temperature_celsius` and `grow_vpd_kpa`. Additional controller, probe,
-and port gauges are created only after a successful Home Assistant sample:
+`grow_temperature_celsius`, `grow_vpd_kpa`, and `grow_room_plant_mood`
+(labeled by `band`; see below). Additional controller, probe, and port gauges
+are created only after a successful Home Assistant sample:
 
 - `grow_probe_temperature_celsius`, `grow_probe_humidity_percent`, `grow_probe_vpd_kpa`
 - `grow_controller_vpd_kpa`, `grow_controller_status`
 - `grow_port_current_power`, `grow_port_status` (labeled by device)
+
+### Plant mood
+
+`GET /mood` is a small observability layer on the leaf VPD the service already
+computes. It returns a band, a short grower-facing mood, and the same reading
+sets `grow_room_plant_mood` so Grafana can chart it without scraping the JSON
+endpoint. Inactive bands are 0, so `max by (job) (grow_room_plant_mood)` is
+the current category. The score goes up as the air gets drier. It is a
+category code, not a quality ranking.
+
+These bands are a soft heuristic for a mixed tent. They are not agronomy
+advice, not stage-specific targets (seedlings usually want less VPD than late
+flower), and not a control signal.
+
+| Leaf VPD (kPa) | Band | Mood | Score |
+|----------------|------|------|-------|
+| < 0.4 | `stressful_humid` | swampy | 1 |
+| 0.4 ≤ VPD < 0.8 | `muggy` | muggy | 2 |
+| 0.8 ≤ VPD ≤ 1.2 | `ideal` | cozy | 3 |
+| 1.2 < VPD ≤ 1.6 | `too_dry` | thirsty | 4 |
+| > 1.6 | `stressful_dry` | crispy | 5 |
+
+Soup and crispy are both stressful, and they stay separate bands so the
+Prometheus label does not hide which problem it is. The Grow-room VPD
+dashboard has a Plant mood stat under the CO₂ panel, one tile per scrape job.
 
 ## Run the Kubernetes lab
 
@@ -242,6 +269,13 @@ labels to keep the live controller and probe readings separate from simulated
 readings. It also groups scrape health by job so an old pod does not leave
 extra DOWN tiles after a rollout. Tests in `tests/test_grafana_dashboard.py`
 check the queries.
+
+When the laptop sleeps, Docker Compose and k3d pause with it. Home Assistant
+and the Compose sensor-service stop, so Prometheus stops scraping
+`grow-room-ha-host` at `host.k3d.internal:8000` and Grow-room VPD goes flat
+until the machine wakes. That is the lab host, not a Grafana bug. An always-on
+Raspberry Pi running Home Assistant and sensor-service would keep that scrape
+up. I have not built that.
 
 ```bash
 kubectl -n monitoring port-forward svc/monitoring-prometheus 9090:9090

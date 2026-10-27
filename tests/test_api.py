@@ -1,7 +1,10 @@
+import re
+
 from fastapi.testclient import TestClient
 
 from sensor_service.main import create_app
 from sensor_service.models import DeviceReading, ProbeReading, Reading
+from sensor_service.mood import BANDS, HEURISTIC_NOTE
 from sensor_service.sources import SimulatorSource
 
 
@@ -48,6 +51,41 @@ def test_metrics_still_served_when_source_fails():
     resp = client(BrokenSource()).get("/metrics")
     assert resp.status_code == 200
     assert "grow_read_errors" in resp.text
+
+
+def _mood_samples(body: str) -> dict[str, float]:
+    return {
+        band: float(value)
+        for band, value in re.findall(r'grow_room_plant_mood\{band="([a-z_]+)"\} (\S+)', body)
+    }
+
+
+def test_mood_endpoint_shape_and_metric():
+    http = client(StaticSource(Reading(temperature_c=25.0, humidity_percent=68.5)))
+    reading = http.get("/readings").json()
+    resp = http.get("/mood")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mood"] == "cozy"
+    assert data["emoji"] == "🌿"
+    assert data["band"] == "ideal"
+    assert data["score"] == 3
+    assert data["message"] == "Sweet spot — stomata are vibing"
+    assert data["note"] == HEURISTIC_NOTE
+    assert data["vpd_kpa"] == reading["vpd_kpa"]
+    assert 0.8 <= data["vpd_kpa"] <= 1.2
+    assert data["temperature_c"] == reading["temperature_c"]
+    assert data["humidity_percent"] == reading["humidity_percent"]
+
+    samples = _mood_samples(http.get("/metrics").text)
+    assert set(samples) == {band.band for band in BANDS}
+    assert samples["ideal"] == 3.0
+    assert all(samples[band.band] == 0.0 for band in BANDS if band.band != "ideal")
+
+
+def test_mood_503_when_source_fails():
+    resp = client(BrokenSource()).get("/mood")
+    assert resp.status_code == 503
 
 
 class StaticSource:

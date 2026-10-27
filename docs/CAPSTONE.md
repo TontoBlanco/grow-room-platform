@@ -102,6 +102,12 @@ a configurable leaf-temperature offset (`LEAF_TEMP_OFFSET_C=-2.0` in the lab
 values). When Home Assistant returns VPD in psi, I convert it to kPa and
 preserve the original value and unit in the response.
 
+`GET /mood` is a thin observability UX layer on that same leaf VPD. It
+returns a playful band — muggy, ideal, too dry, or stressful on the humid or
+dry extreme — and the scrape exports `grow_room_plant_mood` so the Grow-room
+VPD dashboard can show the mood without calling the JSON endpoint. The bands
+are a soft mixed-tent heuristic, not agronomy advice and not a control signal.
+
 ## Why the monitoring stack scrapes the Docker host
 
 This was one of the more useful design problems in the project.
@@ -133,6 +139,11 @@ The port is bound to the Docker host, not just `127.0.0.1`, so the cluster
 network can reach it. The monitoring values also document fallback addresses
 if `host.k3d.internal` fails to resolve. No Home Assistant credentials are
 stored in the Prometheus configuration.
+
+When the laptop sleeps, Docker Compose and k3d pause with it. Home Assistant
+and the Compose sensor-service stop, so the `grow-room-ha-host` scrape of
+`host.k3d.internal:8000` stops and Grow-room VPD goes flat until wake. That
+is the lab host, not a Grafana bug.
 
 This change is in [PR #25](https://github.com/TontoBlanco/grow-room-platform/pull/25).
 
@@ -377,7 +388,9 @@ a much larger project:
 - Image signing with Cosign/Sigstore; the current flow is CI → GHCR → PR → Argo.
 - A mounted PVC, RDS, or a multi-node audit database. Optional local Postgres
   is a single-node relational backend for the same API, not those things.
-- A Raspberry Pi installation beside the tent.
+- A Raspberry Pi beside the tent. An always-on edge running Home Assistant
+  and sensor-service would keep `grow-room-ha-host` scraping while the laptop
+  sleeps. I have not built that.
 - SSO, mTLS, WORM storage, external timestamps, or an independently anchored
   audit chain.
 - A security authorization, STIG assessment, or FedRAMP claim.
