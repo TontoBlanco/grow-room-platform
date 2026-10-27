@@ -140,6 +140,11 @@ network can reach it. The monitoring values also document fallback addresses
 if `host.k3d.internal` fails to resolve. No Home Assistant credentials are
 stored in the Prometheus configuration.
 
+When the laptop sleeps, Docker Compose and k3d pause with it. Home Assistant
+and the Compose sensor-service stop, so the `grow-room-ha-host` scrape of
+`host.k3d.internal:8000` stops and Grow-room VPD goes flat until wake. That
+is the lab host, not a Grafana bug.
+
 This change is in [PR #25](https://github.com/TontoBlanco/grow-room-platform/pull/25).
 
 ### Cleaning up the Grafana queries
@@ -383,7 +388,9 @@ a much larger project:
 - Image signing with Cosign/Sigstore; the current flow is CI → GHCR → PR → Argo.
 - A mounted PVC, RDS, or a multi-node audit database. Optional local Postgres
   is a single-node relational backend for the same API, not those things.
-- A Raspberry Pi installation beside the tent.
+- A Raspberry Pi beside the tent. An always-on edge running Home Assistant
+  and sensor-service would keep `grow-room-ha-host` scraping while the laptop
+  sleeps. I have not built that.
 - SSO, mTLS, WORM storage, external timestamps, or an independently anchored
   audit chain.
 - A security authorization, STIG assessment, or FedRAMP claim.

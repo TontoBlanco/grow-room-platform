@@ -270,6 +270,13 @@ readings. It also groups scrape health by job so an old pod does not leave
 extra DOWN tiles after a rollout. Tests in `tests/test_grafana_dashboard.py`
 check the queries.
 
+When the laptop sleeps, Docker Compose and k3d pause with it. Home Assistant
+and the Compose sensor-service stop, so Prometheus stops scraping
+`grow-room-ha-host` at `host.k3d.internal:8000` and Grow-room VPD goes flat
+until the machine wakes. That is the lab host, not a Grafana bug. An always-on
+Raspberry Pi running Home Assistant and sensor-service would keep that scrape
+up. I have not built that.
+
 ```bash
 kubectl -n monitoring port-forward svc/monitoring-prometheus 9090:9090
 kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
