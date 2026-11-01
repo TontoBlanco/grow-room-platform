@@ -2,19 +2,28 @@
 
 I built this capstone to get hands-on experience with tools I kept seeing in
 cloud, infrastructure, and DevOps job postings: Python, Docker, GitHub Actions,
-Terraform, Kubernetes, Helm, Argo CD, Prometheus, and Grafana. I wanted more
-than a tutorial I could say I finished. I wanted a project I could set up,
-break, troubleshoot, and explain.
+Terraform, Kubernetes, Helm, Argo CD, Prometheus, and Grafana, plus the AWS
+services used for a one-day EKS proof of concept (VPC, EKS, ALB, WAF,
+Route 53, ACM, RDS, Secrets Manager, KMS, S3, Glue, Athena, IAM OIDC, and
+Budgets). I wanted more than a tutorial I could say I finished. I wanted a
+project I could set up, break, troubleshoot, and explain.
 
 The use case is a 4x4 grow tent I run at home. The service reads climate data
 from an AC Infinity controller through Home Assistant, provides an API and
 Prometheus metrics, and puts the readings on a Grafana dashboard. I also added
 an audit API to practice recording state changes and checking data integrity.
 
-**This is a local learning lab, not a production cloud deployment.** Kubernetes
-runs in **k3d** on my computer. Terraform is validated in CI but never applied
-by a repository workflow. The defaults are `cluster_mode = "local"` and
-`enable_eks = false`; there is no `aws_eks_cluster` resource in the repo.
+There are two environments.
+
+- **Local lab.** Kubernetes runs in **k3d** on my computer. The cluster uses
+  simulated readings. Live tent readings stay on Docker Compose. The Terraform
+  root in `infra/` is validated in CI and is not applied by a workflow. Its
+  defaults are `cluster_mode = "local"` and `enable_eks = false`. That root
+  has no `aws_eks_cluster` resource.
+- **AWS proof of concept.** On November 1, 2026 I applied a separate stack,
+  `infra/aws-poc`, in my personal account in `us-west-2`, checked the public
+  HTTPS endpoint, and destroyed the stack the same day to control cost.
+  Evidence is in [docs/aws-poc/README.md](docs/aws-poc/README.md).
 
 For the longer explanation of the design and what I learned, see
 [docs/CAPSTONE.md](docs/CAPSTONE.md).
@@ -40,12 +49,15 @@ monitoring stack.
 | Data sources | A simulator for repeatable testing and a read-only Home Assistant integration for live tent data |
 | Containers and CI | Docker image, Ruff, pytest with an 80% coverage threshold, GHCR publishing, and Trivy scanning |
 | Kubernetes and GitOps | k3d cluster, Helm chart, Argo CD app-of-apps, and image-tag update PRs |
-| Infrastructure as code | Terraform network and cluster modules checked with `fmt`, `validate`, and `tflint` |
+| Infrastructure as code | Local Terraform modules checked with `fmt`, `validate`, and `tflint`, plus a separate EKS stack under `infra/aws-poc` that was applied once and then destroyed |
+| AWS proof of concept | VPC across 3 AZs, EKS 1.36, ALB, WAF, ACM, Route 53, RDS PostgreSQL Multi-AZ, Secrets Manager, KMS, S3, Glue, Athena, Karpenter, and a $25 budget. Screenshots in `docs/aws-poc/` |
 | Observability | Prometheus, Grafana Grow-room VPD dashboard, plant-mood gauge, three alert rules, and two lab SLOs |
 | Audit history | SQLite-backed plant/batch events with state-transition checks and a SHA-256 hash chain |
 
-I built this over five milestones, from the initial API and tests to GitOps,
-monitoring, and the audit log. The implementation notes are in `docs/`.
+I built the lab over five milestones, from the initial API and tests to GitOps,
+monitoring, and the audit log. The implementation notes are in `docs/`. The
+AWS proof of concept is a later, separate deployment. Its gallery is
+[docs/aws-poc/README.md](docs/aws-poc/README.md).
 
 ## How it fits together
 
@@ -76,6 +88,37 @@ The live data path is:
 I also keep a [living platform map](https://cursor.com/canvas/store-6a197a3b-901d-4b50-9079-9a539befde02/debaff3b-9e35-48ab-bab0-59761b62fb09)
 with the layout, milestones, and design decisions. The diagram above is the
 version kept in the repo.
+
+## AWS deployment (proof of concept)
+
+On November 1, 2026 I applied `infra/aws-poc` with Terraform in my personal
+AWS account (`us-west-2`) and destroyed it the same day. The public name was
+`app.mygrowroom.click`. Pods in the cluster ran the simulator. Live tent
+data stayed on the Compose path described above.
+
+The full gallery, with the architecture diagram and the limits, is
+[docs/aws-poc/README.md](docs/aws-poc/README.md). The stack is
+[`infra/aws-poc`](infra/aws-poc). Karpenter and the Secrets Manager store
+are in [`k8s/aws-poc`](k8s/aws-poc). The EKS Argo CD Application is
+[`gitops/eks/sensor-service.yaml`](gitops/eks/sensor-service.yaml). It
+selects [`charts/sensor-service/values-eks.yaml`](charts/sensor-service/values-eks.yaml)
+(three replicas, the ALB Ingress, and ExternalSecret `audit-db`). The k3d
+Application in `gitops/apps/` is unchanged.
+
+![Chrome on https://app.mygrowroom.click/readings, connection secure](docs/aws-poc/images/browser-readings-https_527f.png)
+
+`/readings` over HTTPS. Chrome reports "Connection is secure". The JSON
+`source` is `simulator`.
+
+![Argo CD: monitoring and sensor-service Healthy and Synced](docs/aws-poc/images/argo-applications_f358.png)
+
+Argo CD on the cluster. `monitoring` (kube-prometheus-stack `92.13.1`) and
+`sensor-service` were Healthy and Synced from this repo.
+
+![EKS console: grow-room-poc, Kubernetes 1.36, Active](docs/aws-poc/images/eks-cluster-info_2d79.png)
+
+Cluster `grow-room-poc`, Kubernetes 1.36, status Active: 44 pods, 3 nodes,
+5 add-ons, 6 pod identities.
 
 ## Run it locally
 
@@ -229,9 +272,10 @@ successful CI workflow on `main`. It opens a PR to update `image.tag` in
 the desired state; Argo CD then synchronizes the cluster. It is not an
 unreviewed automatic deployment.
 
-**Terraform** lives in `infra/`. The workflow runs `terraform fmt -check`,
-`terraform init -backend=false`, `terraform validate`, and `tflint` using
-Terraform 1.9.8. It does not run `plan` or `apply`.
+**Terraform** for the local lab lives in `infra/`. The workflow runs
+`terraform fmt -check`, `terraform init -backend=false`, `terraform validate`,
+and `tflint` using Terraform 1.9.8, with `infra/` as the working directory.
+It does not run `plan` or `apply`, and it does not apply `infra/aws-poc`.
 
 | Variable | Repo default | Meaning |
 |----------|--------------|---------|
@@ -239,15 +283,24 @@ Terraform 1.9.8. It does not run `plan` or `apply`.
 | `enable_eks` | `false` | Leaves the EKS-related IAM/security-group branch disabled |
 | `enable_nat_gateway` | `false` | Does not include the hourly-billed NAT gateway |
 
-The EKS branch is **not** a working EKS deployment: it has an IAM role and a
-security group but no `aws_eks_cluster` resource. The Terraform network
-module does define real AWS VPC, subnet, and internet-gateway resources.
-**Running `terraform apply` against the root module can create AWS resources,
-even with the local cluster default.** I left the apply step out of CI and
-included a reminder to configure a $20/month AWS Budgets alert before trying
-a paid deployment.
+The EKS branch in that root module is not a cluster: it has an IAM role and
+a security group, and the `aws_eks_cluster` resource is still commented out.
+The network module does define real AWS VPC, subnet, and internet-gateway
+resources. **Running `terraform apply` against the root module can create
+AWS resources, even with the local cluster default.** CI does not apply it.
+A `budget_reminder` output says to configure a $20/month AWS Budgets alert
+before a paid apply. That output does not create the alert.
 
-More detail: [Terraform guide](docs/WEEK2_TERRAFORM_GUIDE.md) and
+The cluster I did apply is a different root, `infra/aws-poc` (Terraform
+`>= 1.11`, AWS provider `~> 6.71`). It uses the upstream EKS module
+`21.29.0`, an S3 backend with a KMS key and S3 lockfile, and a $25 budget
+in the bootstrap root. GitHub Actions OIDC roles exist for plan and apply.
+The checked-in workflow does not assume them. I applied the stack by hand,
+demoed it, and destroyed it. See
+[docs/aws-poc/README.md](docs/aws-poc/README.md).
+
+The Week 2 and Week 3 guides describe the local lab, not the proof of concept:
+[Terraform guide](docs/WEEK2_TERRAFORM_GUIDE.md) and
 [GitOps guide](docs/WEEK3_GITOPS_GUIDE.md).
 
 ## Monitoring
@@ -343,7 +396,10 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
 That starts one Postgres 16 container and points the API at
 `postgresql://audit:audit@postgres:5432/audit` (a local lab password). CI runs
 the same checks against a Postgres service container. k3d/Helm stay on SQLite
-unless you set the URL yourself. Nothing here provisions RDS.
+unless you set the URL yourself. The local lab does not provision RDS.
+The AWS proof of concept did: Multi-AZ PostgreSQL in `infra/aws-poc`, with
+the URL injected from Secrets Manager. That database was destroyed with the
+rest of the stack. See [docs/aws-poc/README.md](docs/aws-poc/README.md).
 
 Postgres adds a durable relational model: batches, plants, and events with
 foreign keys, state checks, and indexes for plant history and batch lookups.
@@ -363,11 +419,17 @@ The Helm chart uses a non-root user (uid 10001), a read-only root filesystem,
 token automount disabled.
 
 Those settings are a starting point for learning container hardening. This
-project has no ATO, STIG assessment, FedRAMP authorization, production EKS
-cluster, or external state traceability integration. Audit storage is SQLite
-by default. Optional Postgres is a single local database, not multi-node HA,
-not WORM storage, and not RDS. I would rather show exactly what I implemented
-than claim controls I didn't test.
+project has no ATO, STIG assessment, FedRAMP authorization, or external state
+traceability integration. The local lab's audit store is SQLite by default.
+Optional Postgres there is a single local database, not multi-node HA and
+not WORM storage.
+
+The AWS proof of concept was a real EKS cluster with Multi-AZ RDS, a WAF,
+and KMS on disks, secrets, and logs. I destroyed it the same day. It is not
+a standing production cluster, and it is not an authorization. Details and
+the gaps (simulator data in the cloud, WAF logging off, one-day log
+retention, apply role still AdministratorAccess) are in
+[docs/aws-poc/README.md](docs/aws-poc/README.md).
 
 ## Repository layout
 
@@ -376,9 +438,12 @@ than claim controls I didn't test.
 | `sensor_service/` | FastAPI app, data sources, VPD math, and audit implementation |
 | `tests/` | API, math, Home Assistant fixture, audit, and dashboard tests |
 | `charts/sensor-service/` | Helm chart |
-| `gitops/` | Argo CD root and child Applications |
+| `gitops/` | Argo CD apps. `gitops/apps/` is the k3d lab. `gitops/eks/sensor-service.yaml` selects `values-eks.yaml` |
 | `monitoring/` | Prometheus/Grafana configuration, SLOs, dashboard, and alerts |
-| `infra/` | Terraform modules and examples |
+| `infra/` | Local Terraform root and modules. Defaults stay `cluster_mode = "local"` |
+| `infra/aws-poc/` | EKS proof-of-concept stack (VPC, EKS, edge, RDS, data, KMS, OIDC) |
+| `k8s/aws-poc/` | Karpenter NodePool and the Secrets Manager ClusterSecretStore |
+| `docs/aws-poc/` | November 1, 2026 demo screenshots and gallery |
 | `scripts/bootstrap-k3d.sh` | Local k3d bootstrap |
 | `docs/` | Build guides, compliance notes, and the [capstone write-up](docs/CAPSTONE.md) |
 

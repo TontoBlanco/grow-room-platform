@@ -4,8 +4,10 @@
 
 I put this project together because I kept seeing the same tools show up in
 cloud, infrastructure, and DevOps job descriptions: Docker, Terraform,
-Kubernetes, GitHub Actions, Helm, Argo CD, Prometheus, and Grafana. My
-professional background is in configuration management, systems
+Kubernetes, GitHub Actions, Helm, Argo CD, Prometheus, and Grafana, plus the
+AWS services in the one-day EKS proof of concept (VPC, EKS, ALB, WAF,
+Route 53, ACM, RDS, Secrets Manager, KMS, S3, Glue, Athena, IAM OIDC, and
+Budgets). My professional background is in configuration management, systems
 administration, virtualization, and supporting complex IT systems. I wanted
 to move beyond knowing what those tools were and actually work through how
 they fit together.
@@ -16,7 +18,8 @@ LED lighting, and no-till living soil. Climate data is something I already
 pay attention to, so it made sense to build around it.
 
 The result is `grow-room-platform`: a FastAPI service for grow-room sensor
-data, a local Kubernetes and GitOps lab, and a small event-history system.
+data, a local Kubernetes and GitOps lab, a small event-history system, and
+a production-style AWS EKS deployment I applied once and then destroyed.
 The growing setup is a personal home cannabis project. The software is not a
 commercial cultivation platform, a state traceability integration, or a
 production-authorized system.
@@ -37,12 +40,17 @@ what I had done.
 | Week 3: Kubernetes and GitOps | k3d, Helm chart, Argo CD app-of-apps, PR-based image-tag updates |
 | Week 4: Monitoring | Prometheus, Grafana Grow-room VPD dashboard, simulator and Home Assistant scrape targets, alerts, two lab SLOs |
 | Week 5: Audit history | Plant/batch API, state-machine transitions, hash-chained events on SQLite (optional Postgres), integrity check, documentation |
+| AWS proof of concept (Nov 1, 2026) | Separate Terraform stack applied in a personal account: EKS 1.36 across 3 AZs, ALB, WAF, ACM, Route 53, Multi-AZ RDS, then destroyed the same day |
 
-Everything runs locally for the lab. The Kubernetes environment is k3d, not
-EKS. Terraform files are checked in CI, but there is no Terraform plan or
-apply in the workflows. Keeping the lab local gave me room to experiment
-without leaving cloud resources running or treating a partly built EKS
-configuration as a completed deployment.
+The day-to-day lab still runs locally. Kubernetes there is k3d. The
+Terraform workflow checks `infra/` and does not plan or apply it. I kept
+that lab local so I could experiment without leaving a cluster running.
+
+The EKS work is a different root, `infra/aws-poc`. I applied it, checked
+the public endpoint, and tore it down. That is a completed deployment for
+one day, not a standing environment, and it does not turn the local modules
+into a cloud deploy. Screenshots and limits are in
+[aws-poc/README.md](aws-poc/README.md).
 
 ## Architecture: separating the real sensors from the lab
 
@@ -74,7 +82,49 @@ That separation was deliberate. I didn't want my CI tests or Kubernetes
 deployments to depend on a controller in my house, my local network, or a
 Home Assistant access token. The simulator keeps the cluster reproducible.
 The Compose instance lets me use real readings without putting household
-credentials into the GitOps configuration.
+credentials into the GitOps configuration. The AWS proof of concept used
+the same simulator. It did not move the tent path into EKS.
+
+## AWS deployment (proof of concept)
+
+On November 1, 2026 I applied [`infra/aws-poc`](../infra/aws-poc) with
+Terraform in my personal AWS account, region `us-west-2`, and destroyed the
+stack the same day to control cost. Karpenter and the ClusterSecretStore
+are in [`k8s/aws-poc`](../k8s/aws-poc). The write-up, architecture diagram,
+and the rest of the screenshots are in
+[aws-poc/README.md](aws-poc/README.md).
+
+Route 53 and ExternalDNS pointed `app.mygrowroom.click` at a regional WAF
+web ACL, then an internet-facing ALB. The ALB used an ACM certificate, TLS
+policy `ELBSecurityPolicy-TLS13-1-2-2021-06`, and a 301 from HTTP to HTTPS.
+Behind it, EKS 1.36 ran three `sensor-service` pods on three `t3.large`
+nodes, one per AZ, with Karpenter and EKS Pod Identity. External Secrets
+built the audit URL from Secrets Manager. RDS PostgreSQL was Multi-AZ
+(primary `us-west-2c`, standby `us-west-2b`), encrypted, and not public.
+Argo CD synced the chart and kube-prometheus-stack from this repo.
+
+![Chrome on https://app.mygrowroom.click/readings, connection secure](aws-poc/images/browser-readings-https_527f.png)
+
+`/readings` over HTTPS. Chrome reports "Connection is secure". `source` is
+`simulator`.
+
+![Argo CD: monitoring and sensor-service Healthy and Synced](aws-poc/images/argo-applications_f358.png)
+
+`monitoring` (kube-prometheus-stack `92.13.1`) and `sensor-service` were
+Healthy and Synced.
+
+![EKS console: grow-room-poc, Kubernetes 1.36, Active](aws-poc/images/eks-cluster-info_2d79.png)
+
+Cluster `grow-room-poc`, Active, Kubernetes 1.36: 44 pods, 3 nodes,
+5 add-ons, 6 pod identities.
+
+The EKS Argo Application is
+[`gitops/eks/sensor-service.yaml`](../gitops/eks/sensor-service.yaml). It
+selects `values.yaml` and `values-eks.yaml`: three replicas, the Ingress
+for `app.mygrowroom.click` with the ACM and WAF annotations, and
+ExternalSecret `audit-db`. The k3d Application in `gitops/apps/` is
+unchanged. The simulator data source, the single region, and the teardown
+are written up in the gallery.
 
 ### Reading the AC Infinity controller
 
@@ -229,9 +279,9 @@ pod's `prometheus.io/*` annotations; those annotations are kept for context.
 These are useful hardening exercises. They are not evidence of a completed
 security authorization or an assessed compliance baseline.
 
-## Terraform: useful practice without pretending I deployed EKS
+## Terraform: the local modules, and the EKS stack I applied
 
-Terraform lives under `infra/`:
+Terraform for the lab lives under `infra/`:
 
 - `infra/modules/network` defines an AWS VPC, public/private subnets, an
   internet gateway, and an optional NAT gateway.
@@ -256,21 +306,29 @@ enable_eks         = false
 enable_nat_gateway = false
 ```
 
-Those are the repository defaults, not proof that an AWS apply would cost
-nothing. The network module is still real AWS resource code: **running
-`terraform apply` against the root could create a VPC, subnets, and an
-internet gateway even with the cluster set to local**. The EKS-related
-branch has an IAM role and security group, but no `aws_eks_cluster` resource.
-There is no deployed EKS cluster in this project.
+Those are the repository defaults for the local root, not proof that an
+AWS apply of that root would cost nothing. The network module is still real
+AWS resource code: **running `terraform apply` against the root could create
+a VPC, subnets, and an internet gateway even with the cluster set to local**.
+The EKS-related branch in that root has an IAM role and a security group.
+The `aws_eks_cluster` resource there is still commented out.
 
-I left the backend as a commented example and did not put state management
-or an apply step into the workflow. A `budget_reminder` output tells me to
-configure a $20/month AWS Budgets alert before enabling chargeable resources;
-it does not create an alert for me.
+I left that root's backend as a commented example and did not put state
+management or an apply step into the workflow. A `budget_reminder` output
+tells me to configure a $20/month AWS Budgets alert before enabling
+chargeable resources on that root. It does not create an alert.
 
-That distinction matters to me. I can show the modules, explain what
-`validate` checks, and point out what I would still need to implement before
-a cloud deployment. I don't need to claim an EKS environment I didn't build.
+The cluster I applied is `infra/aws-poc`, not this root. It uses
+`terraform-aws-modules/eks/aws` `21.29.0`, remote state in S3 with a KMS
+key, a $25 budget, and GitHub Actions OIDC roles. I applied it by hand on
+November 1, 2026, checked `app.mygrowroom.click`, and destroyed it the same
+day. The workflow still does not plan or apply that stack. The apply role
+is AdministratorAccess, which the bootstrap file calls a demo shortcut.
+Evidence and the remaining gaps are in [aws-poc/README.md](aws-poc/README.md).
+
+Passing `terraform validate` on `infra/` and applying `infra/aws-poc` once
+are different claims. I can show both without treating the local modules as
+a cloud deployment.
 
 [Terraform build notes](WEEK2_TERRAFORM_GUIDE.md) ·
 [GitOps build notes](WEEK3_GITOPS_GUIDE.md)
@@ -366,8 +424,12 @@ There are limits here worth being clear about:
 - Locally, the database defaults to `./data/audit.db`. The container and the
   k3d chart still use `/tmp/audit.db` on `emptyDir` unless
   `AUDIT_DATABASE_URL` is set, so that default history disappears when the pod
-  is replaced. The optional PVC example is not deployed. Optional Postgres is
-  one local database, not RDS and not a multi-node cluster.
+  is replaced. The optional PVC example is not deployed. Optional local
+  Postgres is one database process, not a multi-node cluster.
+- On the AWS proof of concept, the same API used Multi-AZ RDS. The URL came
+  from Secrets Manager. That database was destroyed with the stack. It was
+  not a WORM archive, backup retention was one day, and deletion protection
+  was off.
 
 This gave me a way to practice state validation, event ordering, and
 integrity checks, and to see where an audit trail still needs an external
@@ -379,21 +441,26 @@ trust anchor before it is evidence.
 ## What I intentionally did not implement
 
 I kept a list of things that would change the scope from a practical lab to
-a much larger project:
+a much larger project. The November 1 proof of concept covered some of them
+for one day and left the rest open:
 
-- An EKS cluster, a NAT gateway, RDS, an active remote-state backend, or a
-  Terraform apply workflow.
-- Running the Home Assistant token inside an Argo-managed pod.
+- A standing cluster. I did apply EKS, three NAT gateways, Multi-AZ RDS, and
+  a remote state backend, then destroyed the expensive stack the same day.
+  CI still does not plan or apply `infra/aws-poc`.
+- Running the Home Assistant token inside an Argo-managed pod. AWS pods used
+  the simulator.
 - METRC, Leaf Data, or another state traceability API.
 - Image signing with Cosign/Sigstore; the current flow is CI → GHCR → PR → Argo.
-- A mounted PVC, RDS, or a multi-node audit database. Optional local Postgres
-  is a single-node relational backend for the same API, not those things.
+- A mounted PVC for the local SQLite file. Optional local Postgres is still
+  a single database process. The proof-of-concept RDS instance is gone.
 - A Raspberry Pi beside the tent. An always-on edge running Home Assistant
   and sensor-service would keep `grow-room-ha-host` scraping while the laptop
   sleeps. I have not built that.
 - SSO, mTLS, WORM storage, external timestamps, or an independently anchored
   audit chain.
 - A security authorization, STIG assessment, or FedRAMP claim.
+- A second region, WAF logging, and an apply role narrower than
+  AdministratorAccess.
 
 Those are gaps, not hidden features. The repository documents the work I
 completed and leaves clear places to extend it.
@@ -415,9 +482,10 @@ A few things stood out to me:
 - **Dashboards need deliberate queries.** Two working Prometheus targets can
   still produce confusing panels if labels and aggregation aren't thought
   through.
-- **Validation is not deployment.** Passing Terraform checks shows the
-  configuration can be parsed and validated; it does not show the AWS
-  resources exist or behave correctly.
+- **Validation is not deployment.** Passing Terraform checks on `infra/`
+  shows that root can be parsed. It does not show those resources exist.
+  Applying `infra/aws-poc`, curling the public URL, and destroying the
+  stack is a separate fact, and it expired when the stack did.
 - **An audit trail needs an honest threat model.** Hash chaining can detect
   inconsistencies, but it isn't immutable storage or verified attribution.
 
@@ -437,11 +505,12 @@ When I walk someone through the capstone, I use this order:
    `grow-room-ha-host` scrape jobs.
 4. Demonstrate `/audit/plants/{id}/history`, `/audit/integrity`, an invalid
    transition returning 409, and an event deletion returning 405.
-5. Open the Terraform defaults and GitHub Actions workflow to explain what
-   is validated, what is deployed to k3d, and what has **not** been deployed
-   to AWS.
+5. Open the local Terraform defaults and the GitHub Actions workflow, then
+   the [AWS proof-of-concept gallery](aws-poc/README.md): what CI validates,
+   what runs on k3d, what was applied in `us-west-2` on November 1, 2026,
+   and what was destroyed the same day.
 
-The supporting commands are in the Week 2–5 guides. If I expand the project,
-my priorities are durable audit storage, a true source-timestamp freshness
-metric, and stronger release integrity checks—changes that solve specific
-gaps rather than just add more tools to the diagram.
+The supporting commands are in the Week 2–5 guides. The AWS evidence is
+[aws-poc/README.md](aws-poc/README.md). If I expand the project, my
+priorities are durable audit storage, a true source-timestamp freshness
+metric, and stronger release integrity checks.
