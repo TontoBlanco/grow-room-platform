@@ -55,7 +55,7 @@ module "kms_logs" {
 locals {
   ebs_key_users = [
     "arn:aws:iam::${local.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling",
-    # module.karpenter.iam_role_arn,
+    module.karpenter.iam_role_arn,
   ]
 }
 
