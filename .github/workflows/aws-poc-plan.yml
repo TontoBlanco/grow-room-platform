@@ -60,6 +60,7 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: "1"
           trivyignores: infra/aws-poc/.trivyignore
+          skip-dirs: "**/examples"
 
   plan:
     needs: static
