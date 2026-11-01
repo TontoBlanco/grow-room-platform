@@ -1,0 +1,5 @@
+# infra/aws-poc/.trivyignore
+# One ID per line, each with a reason. Start EMPTY. Run the scan once, read the
+# IDs Trivy prints, fix what you can, and only list here what you accept on purpose.
+# Example format (copy the exact ID string Trivy prints):
+# AWS-0104   # egress 0.0.0.0/0 on node SG: nodes must reach ECR/STS via NAT

@@ -19,9 +19,9 @@ variable "my_ip_cidr" {
 }
 
 variable "admin_principal_arn" {
-  description = "Your SSO role ARN WITHOUT the aws-reserved/sso.amazonaws.com/ path; gets EKS cluster-admin"
-  default     = "arn:aws:iam::590183769702:role/AWSReservedSSO_AdministratorAccess_aace36a5554414e5"
+  description = "FULL IAM role ARN, including the aws-reserved/sso.amazonaws.com/ path, that gets EKS cluster admin"
   type        = string
+  default     = "arn:aws:iam::590183769702:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_aace36a5554414e5"
 }
 
 variable "domain" {
@@ -49,4 +49,11 @@ variable "enable_waf" {
 variable "enable_container_insights" {
   type    = bool
   default = true
+}
+
+# tflint-ignore: terraform_unused_declarations
+variable "alert_email" {
+  description = "Email address subscribed to the grow-room-poc-alerts SNS topic"
+  type        = string
+  default     = ""
 }

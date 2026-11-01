@@ -1,0 +1,118 @@
+# .github/workflows/aws-poc-plan.yml
+name: aws-poc plan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/aws-poc/**"
+      - ".github/workflows/aws-poc-*.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aws-poc-terraform        # same group in plan, apply, destroy: one at a time
+  cancel-in-progress: false       # never kill a Terraform run mid-write
+
+env:
+  AWS_REGION: us-west-2
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_my_ip_cidr: ${{ vars.MY_IP_CIDR }}
+  TF_VAR_domain: ${{ vars.DOMAIN }}
+  TF_VAR_admin_principal_arn: ${{ vars.ADMIN_PRINCIPAL_ARN }}
+  TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+
+jobs:
+  static:
+    name: fmt, validate, tflint, trivy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/aws-poc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+      - name: terraform validate
+        run: |
+          terraform init -backend=false
+          terraform validate
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
+        with:
+          tflint_version: v0.65.0
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}   # avoids GitHub API rate limits when downloading the aws plugin
+        run: |
+          tflint --init
+          tflint --recursive --format compact
+      - name: trivy config scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (pinned by SHA, see Phase 5)
+        with:
+          scan-type: config
+          scan-ref: infra/aws-poc
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          trivyignores: infra/aws-poc/.trivyignore
+
+  plan:
+    needs: static
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # lets the job ask GitHub for an OIDC token
+      pull-requests: write   # lets the job comment on the PR
+    defaults:
+      run:
+        working-directory: infra/aws-poc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::590183769702:role/grow-room-gha-plan
+          role-session-name: gha-plan-${{ github.run_id }}
+          aws-region: us-west-2
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+      - name: terraform init
+        run: terraform init -input=false
+      - name: terraform plan
+        id: plan
+        run: |
+          set +e
+          terraform plan -input=false -lock-timeout=5m -no-color -out=tfplan > plan.log 2>&1
+          code=$?
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          if [ $code -eq 0 ]; then terraform show -no-color tfplan > plan.txt; else cp plan.log plan.txt; fi
+          tail -n 5 plan.log
+      - name: comment plan on PR
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- aws-poc-plan -->";
+            let plan = fs.readFileSync("infra/aws-poc/plan.txt", "utf8");
+            if (plan.length > 60000) { plan = plan.slice(0, 60000) + "\n... truncated, see the job log"; }
+            const ok = "${{ steps.plan.outputs.exitcode }}" === "0";
+            const body = marker + "\n### aws-poc terraform plan: " + (ok ? "succeeded" : "FAILED") +
+              "\nRun: " + context.serverUrl + "/" + context.repo.owner + "/" + context.repo.repo + "/actions/runs/" + context.runId +
+              "\n<details><summary>Show plan</summary>\n\n~~~hcl\n" + plan + "\n~~~\n</details>";
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number });
+            const old = comments.find(c => c.body && c.body.includes(marker));
+            if (old) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: old.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
+            }
+      - name: fail if plan failed
+        if: steps.plan.outputs.exitcode != '0'
+        run: exit 1
