@@ -15,3 +15,8 @@ htmlcov/
 ha-config/
 data/
 *.db
+
+infra/aws-poc/**/*.tfstate*
+infra/aws-poc/**/.terraform/
+infra/aws-poc/**/*.tfplan
+infra/aws-poc/terraform.tfvars

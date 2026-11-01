@@ -109,3 +109,20 @@ affinity: {}
 homeAssistant:
   existingSecret: ""
   secretKey: token
+
+# Name of a Secret with key "url" holding a postgres URL -> AUDIT_DATABASE_URL
+audit:
+  databaseUrlSecret: ""
+
+externalSecret:
+  enabled: false
+  storeName: aws-secrets-manager
+  remoteKey: ""      # RDS master secret ARN
+  dbHost: ""         # RDS endpoint address
+  dbName: audit
+
+ingress:
+  enabled: false
+  className: alb
+  host: ""
+  annotations: {}
