@@ -1,0 +1,29 @@
+# k8s/aws-poc/kyverno-verify-images.yaml  (OPTIONAL - stack up only)
+# Install first (pick the newest chart version from: helm search repo kyverno/kyverno --versions):
+#   helm repo add kyverno https://kyverno.github.io/kyverno/
+#   helm upgrade --install kyverno kyverno/kyverno -n kyverno --create-namespace --version <chart> --wait
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-grow-room-images
+spec:
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: signed-by-ci-on-main
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["grow-room"]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/tontoblanco/grow-room-platform*"
+          failureAction: Audit        # change to Enforce after Audit shows only passes
+          mutateDigest: true          # rewrites tag -> digest so what ran is what was checked
+          attestors:
+            - entries:
+                - keyless:
+                    subject: "https://github.com/TontoBlanco/grow-room-platform/.github/workflows/ci.yml@refs/heads/main"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: https://rekor.sigstore.dev
