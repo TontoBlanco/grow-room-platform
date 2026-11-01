@@ -1,0 +1,36 @@
+# charts/sensor-service/values-eks.yaml - fill from: terraform output
+replicaCount: 3
+
+audit:
+  databaseUrlSecret: audit-db
+
+externalSecret:
+  enabled: true
+  remoteKey: "arn:aws:secretsmanager:us-west-2:590183769702:secret:rds!db-589f4c57-6f5d-4cd7-a1b6-5000144740db-pE19ml"   # rds_secret_arn
+  dbHost: "grow-room-poc-audit.ctm04o8aibty.us-west-2.rds.amazonaws.com"            # rds_address
+
+ingress:
+  enabled: true
+  className: alb
+  host: app.mygrowroom.click   # terraform output app_fqdn; ExternalDNS publishes it
+  annotations:
+    alb.ingress.kubernetes.io/load-balancer-name: grow-room-poc
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    alb.ingress.kubernetes.io/tags: Project=grow-room,Environment=poc
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-west-2:590183769702:certificate/5f13a7ed-fbef-4366-8152-f75fe5062074"   # certificate_arn
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:us-west-2:590183769702:regional/webacl/grow-room-poc-alb/e5b588f8-8a70-4089-a783-2aa9a8b71a17"   # waf_arn
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: topology.kubernetes.io/zone
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: sensor-service
