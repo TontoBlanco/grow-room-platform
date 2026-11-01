@@ -1,0 +1,33 @@
+# EKS Application for the AWS proof of concept.
+# Apply on the EKS cluster (Argo CD in that cluster), not on k3d:
+#   kubectl apply -n argocd -f gitops/eks/sensor-service.yaml
+#
+# Kept out of gitops/apps/ on purpose. The k3d root Application syncs that
+# directory, and gitops/apps/sensor-service.yaml stays on values-k3d.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sensor-service
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/TontoBlanco/grow-room-platform.git
+    targetRevision: HEAD
+    path: charts/sensor-service
+    helm:
+      # values-eks.yaml: 3 replicas, ALB Ingress, ExternalSecret audit-db.
+      valueFiles:
+        - values.yaml
+        - values-eks.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: grow-room
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

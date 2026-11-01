@@ -99,8 +99,11 @@ data stayed on the Compose path described above.
 The full gallery, with the architecture diagram and the limits, is
 [docs/aws-poc/README.md](docs/aws-poc/README.md). The stack is
 [`infra/aws-poc`](infra/aws-poc). Karpenter and the Secrets Manager store
-are in [`k8s/aws-poc`](k8s/aws-poc). EKS Helm overrides are
-[`charts/sensor-service/values-eks.yaml`](charts/sensor-service/values-eks.yaml).
+are in [`k8s/aws-poc`](k8s/aws-poc). The EKS Argo CD Application is
+[`gitops/eks/sensor-service.yaml`](gitops/eks/sensor-service.yaml). It
+selects [`charts/sensor-service/values-eks.yaml`](charts/sensor-service/values-eks.yaml)
+(three replicas, the ALB Ingress, and ExternalSecret `audit-db`). The k3d
+Application in `gitops/apps/` is unchanged.
 
 ![Chrome on https://app.mygrowroom.click/readings, connection secure](docs/aws-poc/images/browser-readings-https_527f.png)
 
@@ -435,7 +438,7 @@ retention, apply role still AdministratorAccess) are in
 | `sensor_service/` | FastAPI app, data sources, VPD math, and audit implementation |
 | `tests/` | API, math, Home Assistant fixture, audit, and dashboard tests |
 | `charts/sensor-service/` | Helm chart |
-| `gitops/` | Argo CD root and child Applications |
+| `gitops/` | Argo CD apps. `gitops/apps/` is the k3d lab. `gitops/eks/sensor-service.yaml` selects `values-eks.yaml` |
 | `monitoring/` | Prometheus/Grafana configuration, SLOs, dashboard, and alerts |
 | `infra/` | Local Terraform root and modules. Defaults stay `cluster_mode = "local"` |
 | `infra/aws-poc/` | EKS proof-of-concept stack (VPC, EKS, edge, RDS, data, KMS, OIDC) |

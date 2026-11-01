@@ -118,10 +118,13 @@ Healthy and Synced.
 Cluster `grow-room-poc`, Active, Kubernetes 1.36: 44 pods, 3 nodes,
 5 add-ons, 6 pod identities.
 
-The committed Argo Application for `sensor-service` still selects the k3d
-value files. The EKS shape is `charts/sensor-service/values-eks.yaml`.
-That gap, the simulator data source, the single region, and the teardown
-are written up in the gallery rather than smoothed over here.
+The EKS Argo Application is
+[`gitops/eks/sensor-service.yaml`](../gitops/eks/sensor-service.yaml). It
+selects `values.yaml` and `values-eks.yaml`: three replicas, the Ingress
+for `app.mygrowroom.click` with the ACM and WAF annotations, and
+ExternalSecret `audit-db`. The k3d Application in `gitops/apps/` is
+unchanged. The simulator data source, the single region, and the teardown
+are written up in the gallery.
 
 ### Reading the AC Infinity controller
 
@@ -444,9 +447,6 @@ for one day and left the rest open:
 - A standing cluster. I did apply EKS, three NAT gateways, Multi-AZ RDS, and
   a remote state backend, then destroyed the expensive stack the same day.
   CI still does not plan or apply `infra/aws-poc`.
-- Selecting `values-eks.yaml` from the committed Argo Application. The demo
-  rendered that file. `gitops/apps/sensor-service.yaml` still selects the
-  k3d values.
 - Running the Home Assistant token inside an Argo-managed pod. AWS pods used
   the simulator.
 - METRC, Leaf Data, or another state traceability API.
@@ -513,5 +513,4 @@ When I walk someone through the capstone, I use this order:
 The supporting commands are in the Week 2–5 guides. The AWS evidence is
 [aws-poc/README.md](aws-poc/README.md). If I expand the project, my
 priorities are durable audit storage, a true source-timestamp freshness
-metric, stronger release integrity checks, and wiring `values-eks.yaml`
-into the committed Argo Application before any future apply.
+metric, and stronger release integrity checks.

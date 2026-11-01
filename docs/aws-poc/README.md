@@ -118,16 +118,17 @@ ReplicaSet to three pods, ExternalSecret `audit-db` to Secret `audit-db`,
 and an Ingress. The chart image tag at that commit is
 `ghcr.io/tontoblanco/grow-room-platform:sha-d47502e`.
 
-`charts/sensor-service/values-eks.yaml` is the EKS override: three replicas,
-the ALB ingress (name `grow-room-poc`, internet-facing, HTTP and HTTPS,
-SSL redirect, the ACM certificate, the TLS 1.3 policy, and the WAF ACL),
-and the ExternalSecret that points at the RDS secret. Preferred pod
-anti-affinity on `topology.kubernetes.io/zone` asks for one pod per AZ.
+The EKS Application is
+[`gitops/eks/sensor-service.yaml`](../../gitops/eks/sensor-service.yaml).
+It renders `charts/sensor-service` with `values.yaml` and
+`values-eks.yaml`. That is what was live: three replicas, an Ingress for
+`app.mygrowroom.click` carrying the ACM certificate and WAF ACL
+annotations, and ExternalSecret `audit-db`. Preferred pod anti-affinity
+on `topology.kubernetes.io/zone` asks for one pod per AZ.
 
-The committed Application in `gitops/apps/sensor-service.yaml` still selects
-`values.yaml` and `values-k3d.yaml` for the local lab. It does not select
-`values-eks.yaml`. The demo rendered the EKS file. Pointing the Application
-at that file is still a follow-up. See Limits.
+The k3d Application in `gitops/apps/sensor-service.yaml` is a different
+file and still selects `values-k3d.yaml`. The k3d root app only syncs
+`gitops/apps/`, so the EKS Application is not applied to the local cluster.
 
 ## Cluster & HA
 
@@ -310,10 +311,10 @@ bootstrap.
 - Cloud pods ran `SENSOR_SOURCE=simulator`. Live AC Infinity readings stayed
   on the Docker Compose path. I did not put the Home Assistant token in the
   cluster.
-- `gitops/apps/sensor-service.yaml` still renders the k3d values. The EKS
-  replica count, Ingress, and ExternalSecret are `values-eks.yaml`. The
-  monitoring Application still uses `monitoring/values-k3d.yaml`, including
-  a scrape of `host.k3d.internal`, which does not exist on EKS.
+- The monitoring Application in `gitops/apps/monitoring.yaml` still uses
+  `monitoring/values-k3d.yaml`, including a scrape of `host.k3d.internal`,
+  which does not exist on EKS. The sensor-service Application for this
+  cluster is `gitops/eks/sensor-service.yaml` and selects `values-eks.yaml`.
 - Argo CD, the load balancer controller, ExternalDNS, External Secrets, and
   Karpenter were installed for the demo. `k8s/aws-poc/` only contains the
   Karpenter NodePool and the ClusterSecretStore. The other install manifests
@@ -334,6 +335,8 @@ bootstrap.
 - This was not a security authorization. No ATO, STIG, or FedRAMP claim,
   and the audit hash chain is still not an external trust anchor.
 
-Code: [`infra/aws-poc`](../../infra/aws-poc) and
-[`k8s/aws-poc`](../../k8s/aws-poc). Local lab:
+Code: [`infra/aws-poc`](../../infra/aws-poc),
+[`k8s/aws-poc`](../../k8s/aws-poc), and
+[`gitops/eks/sensor-service.yaml`](../../gitops/eks/sensor-service.yaml).
+Local lab:
 [README](../../README.md) and [capstone](../CAPSTONE.md).
