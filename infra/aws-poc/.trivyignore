@@ -3,3 +3,4 @@
 # IDs Trivy prints, fix what you can, and only list here what you accept on purpose.
 # Example format (copy the exact ID string Trivy prints):
 # AWS-0104   # egress 0.0.0.0/0 on node SG: nodes must reach ECR/STS via NAT
+AWS-0104  # egress 0.0.0.0/0 on EKS node SG (module egress_all): nodes reach ECR/STS/AWS APIs via NAT
