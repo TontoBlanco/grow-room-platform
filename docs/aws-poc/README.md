@@ -335,6 +335,15 @@ bootstrap.
 - This was not a security authorization. No ATO, STIG, or FedRAMP claim,
   and the audit hash chain is still not an external trust anchor.
 
+## Decisions
+- [Cost record](COSTS.md)
+- [ADR-0001: NAT gateway per AZ](../adr/0001-nat-gateway-per-az.md)
+- [ADR-0002: Karpenter for node scaling](../adr/0002-karpenter-for-node-scaling.md)
+- [ADR-0003: EKS Pod Identity](../adr/0003-eks-pod-identity.md)
+- [ADR-0004: External Secrets Operator](../adr/0004-external-secrets-operator.md)
+- [ADR-0005: AWS WAF on the ALB](../adr/0005-aws-waf-on-alb.md)
+- [ADR-0006: RDS Multi-AZ](../adr/0006-rds-multi-az.md)
+
 Code: [`infra/aws-poc`](../../infra/aws-poc),
 [`k8s/aws-poc`](../../k8s/aws-poc), and
 [`gitops/eks/sensor-service.yaml`](../../gitops/eks/sensor-service.yaml).
