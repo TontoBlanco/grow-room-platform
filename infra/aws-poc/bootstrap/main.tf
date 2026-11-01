@@ -218,9 +218,9 @@ resource "aws_iam_role_policy_attachment" "apply_admin" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-output "state_bucket"   { value = aws_s3_bucket.tfstate.bucket }
-output "plan_role_arn"  { value = aws_iam_role.gha_plan.arn }
+output "state_bucket" { value = aws_s3_bucket.tfstate.bucket }
+output "plan_role_arn" { value = aws_iam_role.gha_plan.arn }
 output "apply_role_arn" { value = aws_iam_role.gha_apply.arn }
 output "tfstate_kms_key_arn" { value = aws_kms_key.tfstate.arn }
-output "zone_id"        { value = local.zone_id }
-output "name_servers"   { value = local.name_servers }
+output "zone_id" { value = local.zone_id }
+output "name_servers" { value = local.name_servers }
