@@ -1,0 +1,9 @@
+# infra/aws-poc/.trivyignore
+# One ID per line, each with a reason. Start EMPTY. Run the scan once, read the
+# IDs Trivy prints, fix what you can, and only list here what you accept on purpose.
+# Example format (copy the exact ID string Trivy prints):
+# AWS-0104   # egress 0.0.0.0/0 on node SG: nodes must reach ECR/STS via NAT
+AWS-0104  # egress 0.0.0.0/0 on EKS node SG (module egress_all): nodes reach ECR/STS/AWS APIs via NAT
+AWS-0041  # EKS public endpoint restricted to my_ip_cidr (single /32); private-only would need VPN/bastion, out of scope for PoC
+AWS-0040  # EKS public endpoint enabled but limited to my_ip_cidr /32; private-only needs VPN/bastion, out of scope for PoC
+AWS-0132  # Athena query-results bucket uses SSE-S3; holds disposable query output only, destroyed each session

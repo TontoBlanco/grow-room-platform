@@ -156,7 +156,10 @@ data "aws_iam_policy_document" "plan_trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:*"]
+      values = [
+        "repo:${var.github_repo}:*",
+        "repo:TontoBlanco@173013503/grow-room-platform@1431393221:*",
+      ]
     }
   }
 }
@@ -177,7 +180,10 @@ data "aws_iam_policy_document" "apply_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:environment:aws-poc"]
+      values = [
+        "repo:${var.github_repo}:environment:aws-poc",
+        "repo:TontoBlanco@173013503/grow-room-platform@1431393221:environment:aws-poc",
+      ]
     }
   }
 }
