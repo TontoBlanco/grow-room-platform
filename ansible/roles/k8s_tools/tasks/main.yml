@@ -1,19 +1,28 @@
 - name: Install kubectl
-  ansible.builtin.shell: |
-    curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-    chmod 0755 /usr/local/bin/kubectl
-  args:
-    creates: /usr/local/bin/kubectl
+  ansible.builtin.get_url:
+    url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
+    dest: /usr/local/bin/kubectl
+    mode: "0755"
   become: true
 
+- name: Download and unpack helm
+  ansible.builtin.unarchive:
+    src: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
+    dest: /tmp
+    remote_src: true
+    creates: /tmp/linux-amd64/helm
+
 - name: Install helm
-  ansible.builtin.shell: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-  args:
-    creates: /usr/local/bin/helm
+  ansible.builtin.copy:
+    src: /tmp/linux-amd64/helm
+    dest: /usr/local/bin/helm
+    remote_src: true
+    mode: "0755"
   become: true
 
 - name: Install k3d
-  ansible.builtin.shell: curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-  args:
-    creates: /usr/local/bin/k3d
+  ansible.builtin.get_url:
+    url: "https://github.com/k3d-io/k3d/releases/download/{{ k3d_version }}/k3d-linux-amd64"
+    dest: /usr/local/bin/k3d
+    mode: "0755"
   become: true
