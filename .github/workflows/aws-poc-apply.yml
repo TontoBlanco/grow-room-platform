@@ -2,11 +2,7 @@
 name: aws-poc apply
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "infra/aws-poc/**"
-  workflow_dispatch: {}      # "Run workflow" button = bring the stack up from CI
+  workflow_dispatch:
 
 permissions:
   contents: read
