@@ -13,4 +13,4 @@ jobs:
       - run: pipx install --include-deps ansible && pipx install ansible-lint
       - run: ansible-galaxy collection install -r collections/requirements.yml
       - run: ANSIBLE_CONFIG=$PWD/ansible.cfg ansible-playbook playbooks/site.yml --syntax-check
-      - run: ansible-lint playbooks/site.yml
+      - run: ANSIBLE_COLLECTIONS_PATH=$HOME/.ansible/collections ansible-lint playbooks/site.yml
