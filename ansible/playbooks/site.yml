@@ -1,0 +1,4 @@
+- name: Configure grow-room hosts
+  hosts: wsl
+  roles:
+    - base

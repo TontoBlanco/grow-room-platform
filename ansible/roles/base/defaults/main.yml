@@ -1,0 +1,7 @@
+base_packages:
+  - git
+  - curl
+  - jq
+  - htop
+  - unzip
+base_timezone: America/Denver

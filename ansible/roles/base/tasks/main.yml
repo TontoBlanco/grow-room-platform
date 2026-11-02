@@ -1,0 +1,12 @@
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ base_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ base_timezone }}"
+  become: true
