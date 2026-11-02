@@ -1,0 +1,5 @@
+- name: Configure grow-room hosts
+  hosts: wsl
+  roles:
+    - base
+    - k8s_tools
