@@ -1,0 +1,16 @@
+name: ansible-lint
+on:
+  pull_request:
+    paths: ["ansible/**"]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ansible
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx install --include-deps ansible && pipx inject ansible ansible-lint
+      - run: ansible-galaxy collection install community.general
+      - run: ANSIBLE_CONFIG=$PWD/ansible.cfg ansible-playbook playbooks/site.yml --syntax-check
+      - run: ~/.local/share/pipx/venvs/ansible/bin/ansible-lint playbooks/site.yml
