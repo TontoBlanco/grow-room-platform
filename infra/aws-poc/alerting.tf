@@ -1,14 +1,14 @@
 # infra/aws-poc/alerting.tf
 resource "aws_sns_topic" "alerts" {
-  name              = "${local.name}-alerts"      # grow-room-poc-alerts
-  kms_master_key_id = "alias/aws/sns"             # AWS-managed key: free, same-account publishers allowed
+  name              = "${local.name}-alerts" # grow-room-poc-alerts
+  kms_master_key_id = "alias/aws/sns"        # AWS-managed key: free, same-account publishers allowed
 }
 
 resource "aws_sns_topic_subscription" "email" {
   count     = var.alert_email == "" ? 0 : 1
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
-  endpoint  = var.alert_email                    # you must click "Confirm subscription" in the email
+  endpoint  = var.alert_email # you must click "Confirm subscription" in the email
 }
 
 data "aws_iam_policy_document" "alertmanager_trust" {
