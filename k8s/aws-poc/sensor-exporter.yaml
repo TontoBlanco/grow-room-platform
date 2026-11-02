@@ -1,0 +1,39 @@
+# k8s/aws-poc/sensor-exporter.yaml  - EKS side: simulator data into the PoC bucket (ephemeral).
+# Uses the existing Pod Identity association grow-room-poc-sensor-exporter
+# (namespace grow-room, service account sensor-exporter, s3:PutObject on raw/*).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sensor-exporter
+  namespace: grow-room
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sensor-exporter
+  namespace: grow-room
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: sensor-exporter
+          restartPolicy: Never
+          containers:
+            - name: export
+              image: python:3.13-slim
+              command: ["sh", "-c"]
+              args:
+                - pip install -q boto3 && python /app/ship_readings.py --once --prefix raw --bucket grow-room-poc-sensor-590183769702 --url http://sensor-service.grow-room.svc:8000/readings
+              volumeMounts:
+                - name: app
+                  mountPath: /app
+          volumes:
+            - name: app
+              configMap:
+                name: ship-readings
