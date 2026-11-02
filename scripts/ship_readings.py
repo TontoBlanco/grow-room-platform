@@ -38,7 +38,9 @@ def flatten(r: dict) -> dict:
 
 
 def fetch(url: str) -> dict:
-    with urllib.request.urlopen(url, timeout=10) as resp:
+    if not url.startswith(("http://", "https://")):
+        raise ValueError(f"only http(s) URLs allowed: {url}")
+    with urllib.request.urlopen(url, timeout=10) as resp:  # noqa: S310 - scheme checked above
         return json.load(resp)
 
 
@@ -74,7 +76,8 @@ def main() -> None:
                 buf = []
             else:
                 try:
-                    print(f"wrote {upload(s3, a.bucket, a.prefix, buf)} ({len(buf)} rows)", flush=True)
+                    key = upload(s3, a.bucket, a.prefix, buf)
+                    print(f"wrote {key} ({len(buf)} rows)", flush=True)
                     buf = []
                 except Exception as exc:  # keep the buffer, retry next cycle
                     print(f"upload failed, will retry: {exc}", flush=True)
