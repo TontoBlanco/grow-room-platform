@@ -9,7 +9,7 @@ terraform {
   }
   backend "s3" {
     bucket       = "grow-room-tfstate-590183769702"
-    key          = "aws-poc/telemetry/terraform.tfstate"   # under aws-poc/ so the existing plan role can read it
+    key          = "aws-poc/telemetry/terraform.tfstate" # under aws-poc/ so the existing plan role can read it
     region       = "us-west-2"
     encrypt      = true
     kms_key_id   = "arn:aws:kms:us-west-2:590183769702:key/213eaa3b-3fa7-4989-a1eb-74765b0db4b9"

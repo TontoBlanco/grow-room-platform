@@ -50,7 +50,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "telemetry" {
       sse_algorithm     = "aws:kms"
       kms_master_key_id = aws_kms_key.telemetry.arn
     }
-    bucket_key_enabled = true   # one KMS call per bucket-key period, not per object = cheaper
+    bucket_key_enabled = true # one KMS call per bucket-key period, not per object = cheaper
   }
 }
 
@@ -102,14 +102,14 @@ resource "aws_glue_catalog_table" "readings" {
   table_type    = "EXTERNAL_TABLE"
 
   parameters = {
-    "classification"                  = "json"
-    "projection.enabled"              = "true"
-    "projection.dt.type"              = "date"
-    "projection.dt.format"            = "yyyy-MM-dd"
-    "projection.dt.range"             = "2026-11-01,NOW"
-    "projection.dt.interval"          = "1"
-    "projection.dt.interval.unit"     = "DAYS"
-    "storage.location.template"       = "s3://${local.bucket}/readings/dt=$${dt}/"
+    "classification"              = "json"
+    "projection.enabled"          = "true"
+    "projection.dt.type"          = "date"
+    "projection.dt.format"        = "yyyy-MM-dd"
+    "projection.dt.range"         = "2026-11-01,NOW"
+    "projection.dt.interval"      = "1"
+    "projection.dt.interval.unit" = "DAYS"
+    "storage.location.template"   = "s3://${local.bucket}/readings/dt=$${dt}/"
   }
 
   partition_keys {
@@ -177,7 +177,7 @@ resource "aws_athena_workgroup" "telemetry" {
   force_destroy = true
   configuration {
     enforce_workgroup_configuration    = true
-    bytes_scanned_cutoff_per_query     = 1073741824   # 1 GB hard stop per query
+    bytes_scanned_cutoff_per_query     = 1073741824 # 1 GB hard stop per query
     publish_cloudwatch_metrics_enabled = true
     result_configuration {
       output_location = "s3://${local.bucket}/athena-results/"
