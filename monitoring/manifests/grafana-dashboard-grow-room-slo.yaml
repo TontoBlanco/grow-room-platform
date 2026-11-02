@@ -1,0 +1,51 @@
+# monitoring/manifests/grafana-dashboard-grow-room-slo.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-grow-room-slo
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: grow-room-platform
+data:
+  grow-room-slo.json: |
+    {
+      "title": "grow-room SLOs",
+      "uid": "grow-room-slo",
+      "schemaVersion": 39,
+      "time": { "from": "now-7d", "to": "now" },
+      "refresh": "30s",
+      "panels": [
+        {
+          "type": "stat", "title": "Availability (7d) - target 99%",
+          "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
+          "targets": [ { "refId": "A", "expr": "avg_over_time(slo:sensor_availability:ratio_rate5m[7d])" } ],
+          "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 3,
+            "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 0.99 } ] } } }
+        },
+        {
+          "type": "stat", "title": "Error budget remaining (7d)",
+          "gridPos": { "x": 6, "y": 0, "w": 6, "h": 6 },
+          "targets": [ { "refId": "A", "expr": "1 - ((1 - avg_over_time(slo:sensor_availability:ratio_rate5m[7d])) / 0.01)" } ],
+          "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 1,
+            "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 0.25 }, { "color": "green", "value": 0.5 } ] } } }
+        },
+        {
+          "type": "stat", "title": "Data freshness - target <= 120 s",
+          "gridPos": { "x": 12, "y": 0, "w": 6, "h": 6 },
+          "targets": [ { "refId": "A", "expr": "slo:sensor_freshness_seconds" } ],
+          "fieldConfig": { "defaults": { "unit": "s",
+            "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 120 } ] } } }
+        },
+        {
+          "type": "timeseries", "title": "Burn rate (1 = spending budget exactly on schedule)",
+          "gridPos": { "x": 0, "y": 6, "w": 18, "h": 8 },
+          "targets": [
+            { "refId": "A", "expr": "(1 - slo:sensor_availability:ratio_rate1h) / 0.01", "legendFormat": "1h" },
+            { "refId": "B", "expr": "(1 - slo:sensor_availability:ratio_rate6h) / 0.01", "legendFormat": "6h" }
+          ]
+        }
+      ]
+    }

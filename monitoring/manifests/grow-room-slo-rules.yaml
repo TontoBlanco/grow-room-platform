@@ -1,0 +1,57 @@
+# monitoring/manifests/grow-room-slo-rules.yaml
+# SLO1 availability: 99% of scrapes succeed over 7 days  -> error budget = 1%
+# SLO2 freshness:    newest VPD sample is <= 120 s old
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: grow-room-slo
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: grow-room-platform
+spec:
+  groups:
+    - name: grow-room-slo.recording
+      interval: 30s
+      rules:
+        - record: slo:sensor_availability:ratio_rate5m
+          expr: avg(avg_over_time(up{job="sensor-service"}[5m]))
+        - record: slo:sensor_availability:ratio_rate30m
+          expr: avg(avg_over_time(up{job="sensor-service"}[30m]))
+        - record: slo:sensor_availability:ratio_rate1h
+          expr: avg(avg_over_time(up{job="sensor-service"}[1h]))
+        - record: slo:sensor_availability:ratio_rate6h
+          expr: avg(avg_over_time(up{job="sensor-service"}[6h]))
+        - record: slo:sensor_freshness_seconds
+          expr: max(time() - timestamp(grow_vpd_kpa))
+    - name: grow-room-slo.alerts
+      rules:
+        - alert: SensorAvailabilityBudgetBurnFast
+          expr: |
+            (1 - slo:sensor_availability:ratio_rate1h) > (14.4 * 0.01)
+            and
+            (1 - slo:sensor_availability:ratio_rate5m) > (14.4 * 0.01)
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: sensor-service is burning error budget 14x too fast
+            description: At this rate the 7-day 1% budget is gone in about 12 hours.
+        - alert: SensorAvailabilityBudgetBurnSlow
+          expr: |
+            (1 - slo:sensor_availability:ratio_rate6h) > (6 * 0.01)
+            and
+            (1 - slo:sensor_availability:ratio_rate30m) > (6 * 0.01)
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: sensor-service is burning error budget 6x too fast
+            description: Sustained partial outage over the last 6 hours.
+        - alert: SensorDataStale
+          expr: slo:sensor_freshness_seconds > 120 or absent(grow_vpd_kpa)
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: No fresh VPD reading for over 2 minutes
+            description: Freshness SLO breached, or the metric disappeared entirely.
