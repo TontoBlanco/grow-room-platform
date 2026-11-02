@@ -2,3 +2,4 @@
   hosts: wsl
   roles:
     - base
+    - k8s_tools

@@ -1,0 +1,19 @@
+- name: Install kubectl
+  ansible.builtin.shell: |
+    curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod 0755 /usr/local/bin/kubectl
+  args:
+    creates: /usr/local/bin/kubectl
+  become: true
+
+- name: Install helm
+  ansible.builtin.shell: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  args:
+    creates: /usr/local/bin/helm
+  become: true
+
+- name: Install k3d
+  ansible.builtin.shell: curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+  args:
+    creates: /usr/local/bin/k3d
+  become: true
