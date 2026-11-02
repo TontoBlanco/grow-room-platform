@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: grow-room-slo
+  namespace: monitoring
+spec:
+  route:
+    receiver: grow-room-null
+    matchers:
+      - name: alertname
+        value: SensorAvailabilityBudgetBurnSlow
+    groupWait: 30s
+    repeatInterval: 4h
+  receivers:
+    - name: grow-room-null
