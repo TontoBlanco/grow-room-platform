@@ -7,6 +7,9 @@
   become: true
 
 - name: Set timezone
-  community.general.timezone:
-    name: "{{ base_timezone }}"
+  ansible.builtin.file:
+    src: "/usr/share/zoneinfo/{{ base_timezone }}"
+    dest: /etc/localtime
+    state: link
+    force: true
   become: true
