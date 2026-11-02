@@ -20,3 +20,7 @@ infra/aws-poc/**/*.tfstate*
 infra/aws-poc/**/.terraform/
 infra/aws-poc/**/*.tfplan
 infra/aws-poc/terraform.tfvars
+
+.venv-shipper/
+infra/telemetry/.terraform/
+infra/telemetry/*.tfplan
