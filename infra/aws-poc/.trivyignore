@@ -7,3 +7,4 @@ AWS-0104  # egress 0.0.0.0/0 on EKS node SG (module egress_all): nodes reach ECR
 AWS-0041  # EKS public endpoint restricted to my_ip_cidr (single /32); private-only would need VPN/bastion, out of scope for PoC
 AWS-0040  # EKS public endpoint enabled but limited to my_ip_cidr /32; private-only needs VPN/bastion, out of scope for PoC
 AWS-0132  # Athena query-results bucket uses SSE-S3; holds disposable query output only, destroyed each session
+AWS-0136  # SNS alert topic uses AWS-managed alias/aws/sns key (free, same-account publishers); CMK not worth cost for PoC
