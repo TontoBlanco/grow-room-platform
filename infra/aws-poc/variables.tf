@@ -51,7 +51,6 @@ variable "enable_container_insights" {
   default = true
 }
 
-# tflint-ignore: terraform_unused_declarations
 variable "alert_email" {
   description = "Email address subscribed to the grow-room-poc-alerts SNS topic"
   type        = string
