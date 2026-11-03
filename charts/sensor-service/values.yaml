@@ -3,6 +3,19 @@
 
 replicaCount: 1
 
+# Kubernetes default. values-eks.yaml raises this above the ALB preStop sleep.
+terminationGracePeriodSeconds: 30
+
+# preStopSleepSeconds 0 leaves the pod spec without a lifecycle hook (local k3d).
+# The EKS values sleep longer than the ALB deregistration delay.
+shutdown:
+  preStopSleepSeconds: 0
+
+# Off by default so a 1-replica k3d install is not stuck behind minAvailable: 2.
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 2
+
 image:
   repository: ghcr.io/tontoblanco/grow-room-platform
   # Prefer an immutable tag (git SHA) in GitOps; "latest" is fine for first local smoke.

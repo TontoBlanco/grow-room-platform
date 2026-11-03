@@ -1,7 +1,27 @@
 # k8s/aws-poc/kyverno-verify-images.yaml  (OPTIONAL - stack up only)
-# Install first (pick the newest chart version from: helm search repo kyverno/kyverno --versions):
+# Install first (pick the newest 3.x chart: helm search repo kyverno/kyverno --versions):
 #   helm repo add kyverno https://kyverno.github.io/kyverno/
 #   helm upgrade --install kyverno kyverno/kyverno -n kyverno --create-namespace --version <chart> --wait
+#
+# Stay in Audit until a PolicyReport for ghcr.io/tontoblanco/grow-room-platform:sha-*
+# is pass. The signature has to be the legacy cosign tag (sha256-<digest>.sig)
+# published by .github/workflows/ci.yml on main. Cosign 3 bundles stored only as
+# OCI referrers are what produced "no signatures found" on Kyverno 1.19.
+#
+# Switch to Enforce only after that pass, and only then allow mutation:
+#   failureAction: Enforce
+#   mutateDigest: true
+#   verifyDigest: true
+# mutateDigest must be false while the failure action is Audit. Kyverno rejects
+# the policy otherwise ("mutateDigest must be set to false for Audit failure
+# action", including when the field is spec.validationFailureAction).
+# verifyDigest stays false here because the chart deploys a tag, not a digest.
+#
+# ClusterPolicy verifyImages is deprecated in Kyverno 1.19 in favor of
+# ImageValidatingPolicy (policies.kyverno.io/v1). Removal is planned for 1.20.
+# Migrating this rule is a later task; this file stays a ClusterPolicy so the
+# PoC install steps do not change.
+# https://kyverno.io/docs/guides/migration-to-cel/
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -18,11 +38,13 @@ spec:
       verifyImages:
         - imageReferences:
             - "ghcr.io/tontoblanco/grow-room-platform*"
-          failureAction: Audit        # change to Enforce after Audit shows only passes
-          mutateDigest: true          # rewrites tag -> digest so what ran is what was checked
+          failureAction: Audit
+          mutateDigest: false
+          verifyDigest: false
           attestors:
             - entries:
                 - keyless:
+                    # Same identity string ci.yml passes to `cosign verify`.
                     subject: "https://github.com/TontoBlanco/grow-room-platform/.github/workflows/ci.yml@refs/heads/main"
                     issuer: "https://token.actions.githubusercontent.com"
                     rekor:
