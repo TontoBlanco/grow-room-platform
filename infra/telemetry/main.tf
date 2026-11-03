@@ -66,6 +66,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "telemetry" {
       days = 7
     }
   }
+  # Count-based retention (keep the newest 5) is not a lifecycle feature.
+  # scripts/aws-poc.ps1 prunes ha-backups/ after a verified upload. This rule
+  # only aborts a multipart upload that never finished, so a failed put does
+  # not leave parts under the prefix.
+  rule {
+    id     = "abort-incomplete-ha-backup-uploads"
+    status = "Enabled"
+    filter {
+      prefix = "ha-backups/"
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
 }
 
 data "aws_iam_policy_document" "tls_only" {

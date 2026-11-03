@@ -13,6 +13,9 @@ htmlcov/
 *.zip
 # Local Home Assistant config (tokens, secrets) and the sqlite audit log.
 ha-config/
+ha-config.previous/
+ha-config.staging/
+.ha-migration-state.json
 data/
 *.db
 

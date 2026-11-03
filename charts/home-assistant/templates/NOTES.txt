@@ -1,0 +1,3 @@
+Home Assistant is ClusterIP only. sensor-service reaches it inside the cluster.
+Do not start the Docker Compose homeassistant service while this pod is running.
+The AC Infinity integration logs into one cloud account.

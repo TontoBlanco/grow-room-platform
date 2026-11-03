@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: home-assistant
+  labels:
+    app.kubernetes.io/name: home-assistant
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # One RWO volume. A rolling update would try to mount it twice.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: home-assistant
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: home-assistant
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: home-assistant
+      initContainers:
+        - name: restore
+          image: "{{ .Values.restoreImage.repository }}:{{ .Values.restoreImage.tag }}"
+          imagePullPolicy: {{ .Values.restoreImage.pullPolicy }}
+          command: ["/bin/bash", "/scripts/restore.sh"]
+          env:
+            - name: HA_BUCKET
+              value: {{ .Values.bucket | quote }}
+            - name: HA_KEY
+              value: {{ .Values.backupKey | quote }}
+            - name: HA_CONFIG
+              value: /config
+            - name: AWS_REGION
+              value: {{ .Values.region | quote }}
+            - name: AWS_DEFAULT_REGION
+              value: {{ .Values.region | quote }}
+            - name: HA_KMS_ALIAS
+              value: {{ .Values.kmsKeyAlias | quote }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: scripts
+              mountPath: /scripts
+      containers:
+        - name: home-assistant
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: TZ
+              value: America/Los_Angeles
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 40
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 15
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: home-assistant-config
+        - name: scripts
+          configMap:
+            name: home-assistant-scripts
+            defaultMode: 0555
