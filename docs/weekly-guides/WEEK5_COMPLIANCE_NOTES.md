@@ -80,13 +80,13 @@ Do **not** paste a complete Actions workflow from this pack — see
 
 Stay on k3d for daily work. Map cloud IAM ideas to what you already touch:
 
-| Concern | Local / k3d practice | Cloud note (do not apply yet) |
+| Concern | Local / k3d practice | What happened later |
 |---|---|---|
 | Cluster admin | Your kubeconfig is admin on the hobby cluster — accept that for labs | EKS: separate break-glass vs deployer roles |
 | Deploy rights | Argo CD reconciles from Git; humans merge PRs | IRSA / workload identity later |
 | App runtime | Sensor Service needs read to HA token (secret) + write to audit DB path | No AWS keys in the Pod |
 | Metrics | Prometheus scrapes `/metrics` only | NetworkPolicy to monitoring ns later |
-| Audit DB | SQLite file on emptyDir/PVC, or optional local Postgres via `AUDIT_DATABASE_URL` | RDS is out of scope for this $0 lab |
+| Audit DB | SQLite file on emptyDir/PVC, or optional local Postgres via `AUDIT_DATABASE_URL` | Session RDS exists in `infra/aws-poc` and is destroyed with the stack. The daily lab is still SQLite. |
 
 Interview line:
 

@@ -16,8 +16,10 @@ By the end of the week you have:
 4. **Compliance notes** (STIG-style hardening, SBOM/signing, least privilege)
    you can defend in interviews — educational talking points only.
 5. A **write-up outline** (architecture diagram + blog skeleton) ready to publish.
-6. Still **$0** cloud — SQLite by default, optional local Postgres via Compose.
-   No RDS. No `terraform apply` against a real AWS account for this week.
+6. This week's audit store is still local: SQLite by default, optional
+   Postgres via Compose. No `terraform apply` in this week. Session RDS
+   came later and is destroyed with the proof of concept. See the
+   [documentation site](../index.md).
 
 You already know Deployments, Services, Argo sync, and Prometheus scrapes.
 This week adds an **immutable evidence trail** next to the mutable live objects
@@ -43,7 +45,7 @@ cp path/to/grow-room-platform-week5/tests/test_audit.py ./tests/
 mkdir -p data docs
 cp path/to/grow-room-platform-week5/data/.gitignore ./data/
 cp path/to/grow-room-platform-week5/data/.gitkeep ./data/ 2>/dev/null || touch ./data/.gitkeep
-cp path/to/grow-room-platform-week5/docs/WEEK5_*.md ./docs/
+cp path/to/grow-room-platform-week5/docs/weekly-guides/WEEK5_*.md ./docs/weekly-guides/
 cp path/to/grow-room-platform-week5/docs/main_patch.md ./docs/
 # Optional PVC snippet (only if you want DB to survive Pod restarts on k3d):
 mkdir -p charts/snippets
@@ -81,10 +83,10 @@ a new Application for Week 5 unless you opt into the PVC snippet.
 
 ## Step 1: Why seed-to-sale audit logs matter
 
-Commercial cannabis (and many other regulated ag verticals) tracks **every plant
-and every state change** so a regulator can reconstruct: where did this unit
-come from, who moved it, when, and into what status? That trail is the difference
-between "we think we are compliant" and "here is the evidence package."
+Regulated agriculture tracks **every plant and every state change** so an
+inspector can reconstruct where a unit came from, who moved it, when, and into
+what status. That trail is the difference between "we think we are compliant"
+and "here is the evidence package."
 
 ### DoD / ATO analogy (use carefully)
 
@@ -190,7 +192,7 @@ the plant row converges to the latest `to_state`.
 
 ---
 
-## Step 4: Local run path (SQLite, $0)
+## Step 4: Local run path (SQLite)
 
 Default path: `AUDIT_DB_PATH` → `./data/audit.db` (stdlib `sqlite3`, no new pip
 deps).
@@ -235,7 +237,7 @@ curl -s localhost:8000/audit/plants/$PLANT_ID/history | jq .
 curl -s localhost:8000/audit/integrity | jq .
 ```
 
-### Optional Postgres (local, still $0)
+### Optional Postgres (local Compose)
 
 SQLite stays the default for local runs, k3d, and any pytest invocation that
 does not set a database URL. To use Postgres for `/audit`:
@@ -294,10 +296,10 @@ OpenAPI: `/docs` → tag **audit**.
 
 Read and lightly customize:
 
-- `docs/WEEK5_COMPLIANCE_NOTES.md` — STIG-style chart/image checklist, Trivy/SBOM,
+- `docs/weekly-guides/WEEK5_COMPLIANCE_NOTES.md` — STIG-style chart/image checklist, Trivy/SBOM,
   least privilege on k3d.
-- `docs/WEEK5_WRITEUP_OUTLINE.md` — mermaid architecture + blog outline.
-- `docs/WEEK5_CI_NOTE.md` — optional pytest CI you author yourself.
+- `docs/weekly-guides/WEEK5_WRITEUP_OUTLINE.md` — mermaid architecture + blog outline.
+- `docs/weekly-guides/WEEK5_CI_NOTE.md` — optional pytest CI you author yourself.
 
 These are **talking points**, not a claim that your home tent is STIGed or
 ATO'd.
@@ -345,10 +347,10 @@ Out of scope for "code done":
 4. **Relational model, same API:** "SQLite is the default. Postgres uses the
    same three tables — projections for batches and plants, an append-only
    event chain with foreign keys and a single writer lock on the hash tail.
-   k3d stays on SQLite. No RDS."
-5. **$0 lab discipline:** "SQLite locally, optional local Postgres, k3d for the
-   platform weeks, Terraform modules validated without applying paid EKS —
-   budget as a first-class control."
+   k3d stays on SQLite. Session RDS is a later stack and is destroyed with it."
+5. **Lab discipline:** "SQLite on the laptop, optional local Postgres, k3d for the
+   platform weeks. The local Terraform root is validated without apply.
+   The proof of concept is a separate session, and the budget does not stop the spend."
 6. **Security+ / cleared background without inventing jobs:** "I use the same
    vocabulary as authorization packages — evidence, attribution, integrity,
    least privilege — on a personal CEA portfolio so I can discuss it concretely."

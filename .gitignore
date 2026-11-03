@@ -24,9 +24,13 @@ infra/aws-poc/terraform.tfvars
 .venv-shipper/
 infra/telemetry/.terraform/
 infra/telemetry/*.tfplan
+
 # Roles Anywhere material for the Grafana reader. Create it under the home CA
 # directory (see docs/ATHENA_GRAFANA.md). Never commit the key or the secret.
 grafana-reader.key
 grafana-reader.crt
 grafana-reader.csr
 grafana-athena-identity.yaml
+
+# MkDocs build output. The site is published by GitHub Pages.
+/site/

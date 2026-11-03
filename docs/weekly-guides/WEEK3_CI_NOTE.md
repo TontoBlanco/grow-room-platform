@@ -7,7 +7,7 @@ Week 3 deliverable is the **Helm chart + Argo CD loop on k3d**. Extending CI so
 a green image build automatically bumps `image.tag` in Git is a follow-on you
 should author yourself once sync/health feel boring.
 
-Write that workflow using `docs/WEEK3_GITOPS_GUIDE.md` Step 7 (manual sync) as
+Write that workflow using `docs/weekly-guides/WEEK3_GITOPS_GUIDE.md` Step 7 (manual sync) as
 the mental model and the **SAMPLE** block at the bottom of that guide as a
 shape reference only.
 

@@ -3,7 +3,7 @@
 I built this capstone to get hands-on experience with tools I kept seeing in
 cloud, infrastructure, and DevOps job postings: Python, Docker, GitHub Actions,
 Terraform, Kubernetes, Helm, Argo CD, Prometheus, and Grafana, plus the AWS
-services used for a one-day EKS proof of concept (VPC, EKS, ALB, WAF,
+services used for a session-based EKS proof of concept (VPC, EKS, ALB, WAF,
 Route 53, ACM, RDS, Secrets Manager, KMS, S3, Glue, Athena, IAM OIDC, and
 Budgets). I wanted more than a tutorial I could say I finished. I wanted a
 project I could set up, break, troubleshoot, and explain.
@@ -13,20 +13,32 @@ from an AC Infinity controller through Home Assistant, provides an API and
 Prometheus metrics, and puts the readings on a Grafana dashboard. I also added
 an audit API to practice recording state changes and checking data integrity.
 
-There are two environments.
+There are three places this runs. The daily lab is local. The expensive
+cluster is not.
 
 - **Local lab.** Kubernetes runs in **k3d** on my computer. The cluster uses
   simulated readings. Live tent readings stay on Docker Compose. The Terraform
   root in `infra/` is validated in CI and is not applied by a workflow. Its
   defaults are `cluster_mode = "local"` and `enable_eks = false`. That root
   has no `aws_eks_cluster` resource.
-- **AWS proof of concept.** On November 1, 2026 I applied a separate stack,
-  `infra/aws-poc`, in my personal account in `us-west-2`, checked the public
-  HTTPS endpoint, and destroyed the stack the same day to control cost.
-  Evidence is in [docs/aws-poc/README.md](docs/aws-poc/README.md).
+- **AWS proof of concept, one session at a time.** `infra/aws-poc` in
+  `us-west-2`. I apply it with `scripts/aws-poc.ps1` when I am ready to pay,
+  and I run `down` before I stop. The first apply was 1 November 2026. The
+  paid test session on 3 November 2026 passed, including teardown. It is not
+  a cluster I leave running. Phases 3 through 7 are done. The record is the
+  [documentation site](docs/index.md), the
+  [3 November test session](docs/test-session/2026-11-03.md), and the
+  [1 November gallery](docs/aws-poc/README.md).
+- **Telemetry that stays up.** `infra/telemetry` stores readings in S3 for
+  Athena. It costs about 1 USD per month. `down` does not remove it. See
+  [Phase 3](docs/phases/phase-3-telemetry.md).
 
 For the longer explanation of the design and what I learned, see
-[docs/CAPSTONE.md](docs/CAPSTONE.md).
+[docs/CAPSTONE.md](docs/CAPSTONE.md). The full documentation site, including
+the architecture, each build phase, the Grafana guide, and the security
+notes, starts at [docs/index.md](docs/index.md). GitHub Actions builds that
+site on every pull request and publishes it from `main` to
+[GitHub Pages](https://tontoblanco.github.io/grow-room-platform/).
 
 ## Why I built it
 
@@ -49,14 +61,15 @@ monitoring stack.
 | Data sources | A simulator for repeatable testing and a read-only Home Assistant integration for live tent data |
 | Containers and CI | Docker image, Ruff, pytest with an 80% coverage threshold, GHCR publishing, and Trivy scanning |
 | Kubernetes and GitOps | k3d cluster, Helm chart, Argo CD app-of-apps, and image-tag update PRs |
-| Infrastructure as code | Local Terraform modules checked with `fmt`, `validate`, and `tflint`, plus a separate EKS stack under `infra/aws-poc` that was applied once and then destroyed |
-| AWS proof of concept | VPC across 3 AZs, EKS 1.36, ALB, WAF, ACM, Route 53, RDS PostgreSQL Multi-AZ, Secrets Manager, KMS, S3, Glue, Athena, Karpenter, and a $25 budget. Screenshots in `docs/aws-poc/` |
+| Infrastructure as code | Local Terraform modules checked with `fmt`, `validate`, and `tflint`. A separate root, `infra/aws-poc`, is what I apply for a paid session and then destroy. |
+| AWS proof of concept | VPC across 3 AZs, EKS 1.36, ALB, WAF, ACM, Route 53, RDS PostgreSQL Multi-AZ, Secrets Manager, KMS, S3, Glue, Athena, Karpenter, and a $25 budget. Brought up by phase, not left running. Gallery in `docs/aws-poc/`. |
+| Telemetry | S3, Glue, and Athena in `infra/telemetry`, kept between sessions, about 1 USD per month |
 | Observability | Prometheus, Grafana Grow-room VPD dashboard, plant-mood gauge, three alert rules, and two lab SLOs |
 | Audit history | SQLite-backed plant/batch events with state-transition checks and a SHA-256 hash chain |
 
-I built the lab over five milestones, from the initial API and tests to GitOps,
-monitoring, and the audit log. The implementation notes are in `docs/`. The
-AWS proof of concept is a later, separate deployment. Its gallery is
+I built the lab over five weeks, then seven numbered phases. Phases 3
+through 7 are done. The page for each one is on the
+[documentation site](docs/index.md). The 1 November gallery is
 [docs/aws-poc/README.md](docs/aws-poc/README.md).
 
 ## How it fits together
@@ -91,10 +104,24 @@ version kept in the repo.
 
 ## AWS deployment (proof of concept)
 
-On November 1, 2026 I applied `infra/aws-poc` with Terraform in my personal
-AWS account (`us-west-2`) and destroyed it the same day. The public name was
-`app.mygrowroom.click`. Pods in the cluster ran the simulator. Live tent
-data stayed on the Compose path described above.
+I do not leave this stack running. `scripts/aws-poc.ps1 up` applies
+`infra/aws-poc` in `us-west-2`, `verify` checks it, and `down` removes the
+expensive resources. The public name during a session is
+`app.mygrowroom.click`. Pods run the simulator. Live tent data stays on
+Compose.
+
+The first session was 1 November 2026, and I destroyed it the same day.
+The paid test session on 3 November 2026 passed: verify, the email alert
+path, the exporter from EKS to S3 to Athena, and drills 1 through 4.
+Teardown was clean. Cleanup from that day is pull request
+[#75](https://github.com/TontoBlanco/grow-room-platform/pull/75), which is
+merged. How the phases fit is
+[Phase 2](docs/phases/phase-2-up-verify-down.md). The session record is
+[the test session page](docs/test-session/2026-11-03.md).
+
+What stays up after `down` is the state bucket, the state KMS key, the
+GitHub OIDC roles, the budget, the hosted zone, and the telemetry stack
+at about 1 USD per month.
 
 The full gallery, with the architecture diagram and the limits, is
 [docs/aws-poc/README.md](docs/aws-poc/README.md). The stack is
@@ -248,12 +275,12 @@ draws.
 Edges are inclusive, so 0.8 kPa is in band for both seedling and veg. Only
 the selected stage is active. `clone` is stored as `seedling`.
 
-These are a cannabis-tent rule of thumb, not a cultivar prescription. They
-follow the ranges commonly printed on cannabis VPD charts: Pulse Grow's
-propagation band (about 0.4–0.8 kPa) and vegetative band (about 0.8–1.2 kPa),
-the flower step many of those charts use (about 1.2–1.5 kPa), and the drier
-late-flower step (about 1.4–1.6 kPa) used to ease botrytis pressure.
-`GET /stage` returns that note with the active numbers.
+These ranges are a rule of thumb for an indoor tent, not a prescription
+for a particular plant. `GET /stage` returns the active stage and the band.
+Pull request
+[#77](https://github.com/TontoBlanco/grow-room-platform/pull/77) merged on
+3 November 2026. The panels are in the
+[Grafana guide](docs/grafana.md).
 
 Override a stage without changing the name:
 
@@ -415,8 +442,8 @@ demoed it, and destroyed it. See
 [docs/aws-poc/README.md](docs/aws-poc/README.md).
 
 The Week 2 and Week 3 guides describe the local lab, not the proof of concept:
-[Terraform guide](docs/WEEK2_TERRAFORM_GUIDE.md) and
-[GitOps guide](docs/WEEK3_GITOPS_GUIDE.md).
+[Terraform guide](docs/weekly-guides/WEEK2_TERRAFORM_GUIDE.md) and
+[GitOps guide](docs/weekly-guides/WEEK3_GITOPS_GUIDE.md).
 
 ## Monitoring
 
@@ -460,7 +487,9 @@ scrape is UP.
 archive in Amazon Athena: database `grow_room_telemetry`, workgroup
 `grow-room-telemetry`, region `us-west-2`. Grafana uses its own read-only
 Roles Anywhere certificate. The shipper role stays write-only. Auto-refresh
-is off. Apply steps are in [docs/ATHENA_GRAFANA.md](docs/ATHENA_GRAFANA.md).
+is off. This landed in pull request
+[#80](https://github.com/TontoBlanco/grow-room-platform/pull/80). Apply
+steps are in [docs/ATHENA_GRAFANA.md](docs/ATHENA_GRAFANA.md).
 
 This lab defines two starting-point SLOs for the in-cluster simulator:
 
@@ -473,7 +502,7 @@ There are also alerts for sensor scrape failures (2 minutes), humidity outside
 30–80% (5 minutes), and more than two sensor container restarts in 15 minutes.
 The humidity rule applies to any matching series, including live and
 simulated readings. See [monitoring/docs-slo.md](monitoring/docs-slo.md) and
-the [observability guide](docs/WEEK4_OBSERVABILITY_GUIDE.md).
+the [observability guide](docs/weekly-guides/WEEK4_OBSERVABILITY_GUIDE.md).
 
 ## Audit log
 
@@ -529,8 +558,8 @@ or METRC connectivity. The hash chain detects a rewritten row. Someone who can
 write the database can still rewrite a row and recompute the chain. The
 `actor` field is recorded, not authenticated.
 
-See the [audit guide](docs/WEEK5_AUDIT_LOG_GUIDE.md) and
-[compliance notes](docs/WEEK5_COMPLIANCE_NOTES.md).
+See the [audit guide](docs/weekly-guides/WEEK5_AUDIT_LOG_GUIDE.md) and
+[compliance notes](docs/weekly-guides/WEEK5_COMPLIANCE_NOTES.md).
 
 ## Security and scope
 
@@ -545,12 +574,14 @@ traceability integration. The local lab's audit store is SQLite by default.
 Optional Postgres there is a single local database, not multi-node HA and
 not WORM storage.
 
-The AWS proof of concept was a real EKS cluster with Multi-AZ RDS, a WAF,
-and KMS on disks, secrets, and logs. I destroyed it the same day. It is not
-a standing production cluster, and it is not an authorization. Details and
-the gaps (simulator data in the cloud, WAF logging off, one-day log
-retention, apply role still AdministratorAccess) are in
-[docs/aws-poc/README.md](docs/aws-poc/README.md).
+The AWS proof of concept is a real EKS cluster with Multi-AZ RDS, a WAF,
+and KMS on disks, secrets, and logs, for the hours I leave it up. I destroy
+those resources at the end of the session. It is not a standing production
+cluster, and it is not an authorization. The gaps (simulator data in the
+cloud, WAF logging off, one-day log retention, apply role still
+AdministratorAccess) are in
+[docs/aws-poc/README.md](docs/aws-poc/README.md). The controls I can point
+at in Git are on the [controls page](docs/security/controls.md).
 
 ## Repository layout
 
@@ -563,10 +594,12 @@ retention, apply role still AdministratorAccess) are in
 | `monitoring/` | Prometheus/Grafana configuration, SLOs, dashboard, and alerts |
 | `infra/` | Local Terraform root and modules. Defaults stay `cluster_mode = "local"` |
 | `infra/aws-poc/` | EKS proof-of-concept stack (VPC, EKS, edge, RDS, data, KMS, OIDC) |
-| `k8s/aws-poc/` | Karpenter NodePool and the Secrets Manager ClusterSecretStore |
-| `docs/aws-poc/` | November 1, 2026 demo screenshots and gallery |
+| `infra/telemetry/` | Persistent S3, Glue, Athena, and the Roles Anywhere shipper. About 1 USD per month. |
+| `k8s/aws-poc/` | Karpenter NodePool, ClusterSecretStore, Kyverno policy, and the sensor-exporter CronJob |
+| `docs/aws-poc/` | 1 November 2026 gallery, cost record, and drill notes |
 | `scripts/bootstrap-k3d.sh` | Local k3d bootstrap |
-| `docs/` | Build guides, compliance notes, and the [capstone write-up](docs/CAPSTONE.md) |
+| `scripts/aws-poc.ps1` | `up`, `verify`, and `down` for a paid session |
+| `docs/` | The [documentation site](docs/index.md), week notes, and the [capstone write-up](docs/CAPSTONE.md) |
 
 ## License
 

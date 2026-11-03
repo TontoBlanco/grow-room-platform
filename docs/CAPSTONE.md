@@ -5,7 +5,7 @@
 I put this project together because I kept seeing the same tools show up in
 cloud, infrastructure, and DevOps job descriptions: Docker, Terraform,
 Kubernetes, GitHub Actions, Helm, Argo CD, Prometheus, and Grafana, plus the
-AWS services in the one-day EKS proof of concept (VPC, EKS, ALB, WAF,
+AWS services in the session-based EKS proof of concept (VPC, EKS, ALB, WAF,
 Route 53, ACM, RDS, Secrets Manager, KMS, S3, Glue, Athena, IAM OIDC, and
 Budgets). My professional background is in configuration management, systems
 administration, virtualization, and supporting complex IT systems. I wanted
@@ -19,8 +19,9 @@ pay attention to, so it made sense to build around it.
 
 The result is `grow-room-platform`: a FastAPI service for grow-room sensor
 data, a local Kubernetes and GitOps lab, a small event-history system, and
-a production-style AWS EKS deployment I applied once and then destroyed.
-The growing setup is a personal home cannabis project. The software is not a
+an AWS proof of concept I apply for a session and then destroy. A smaller
+telemetry stack stays up at about 1 USD per month.
+The growing setup is a personal indoor plant grow tent. The software is not a
 commercial cultivation platform, a state traceability integration, or a
 production-authorized system.
 
@@ -28,7 +29,8 @@ My goal wasn't to build the biggest architecture I could draw. It was to
 build something I could run, test, break, fix, and explain without overstating
 what I had done.
 
-[README and setup instructions](../README.md) ·
+[README and setup instructions](https://github.com/TontoBlanco/grow-room-platform/blob/main/README.md) ·
+[Documentation site](index.md) ·
 [Living platform map](https://cursor.com/canvas/store-6a197a3b-901d-4b50-9079-9a539befde02/debaff3b-9e35-48ab-bab0-59761b62fb09)
 
 ## What I completed
@@ -40,17 +42,25 @@ what I had done.
 | Week 3: Kubernetes and GitOps | k3d, Helm chart, Argo CD app-of-apps, PR-based image-tag updates |
 | Week 4: Monitoring | Prometheus, Grafana Grow-room VPD dashboard, simulator and Home Assistant scrape targets, alerts, two lab SLOs |
 | Week 5: Audit history | Plant/batch API, state-machine transitions, hash-chained events on SQLite (optional Postgres), integrity check, documentation |
-| AWS proof of concept (Nov 1, 2026) | Separate Terraform stack applied in a personal account: EKS 1.36 across 3 AZs, ALB, WAF, ACM, Route 53, Multi-AZ RDS, then destroyed the same day |
+| AWS proof of concept | `infra/aws-poc` in `us-west-2`, applied for a session and then destroyed. First session 1 November 2026. Paid test session 3 November 2026 passed. |
+| Phases 3–7 | Telemetry, alerts and drills, image signing, cost records, and Ansible. Done. |
+| Growth stage | `GROW_STAGE` and the VPD target band. Pull request #77, merged 3 November 2026. |
 
-The day-to-day lab still runs locally. Kubernetes there is k3d. The
-Terraform workflow checks `infra/` and does not plan or apply it. I kept
-that lab local so I could experiment without leaving a cluster running.
+The day-to-day lab still runs on the laptop. Kubernetes there is k3d. The
+Terraform workflow checks `infra/` and does not plan or apply it. That root
+stays local so a documentation week cannot start a bill.
 
-The EKS work is a different root, `infra/aws-poc`. I applied it, checked
-the public endpoint, and tore it down. That is a completed deployment for
-one day, not a standing environment, and it does not turn the local modules
-into a cloud deploy. Screenshots and limits are in
-[aws-poc/README.md](aws-poc/README.md).
+The EKS work is a different root, `infra/aws-poc`. I bring it up by phase
+with `scripts/aws-poc.ps1`, check it, and tear down the expensive resources
+before I stop. It is not a standing environment. Phases 3 through 7 are
+done. The S3, Glue, and Athena telemetry stack stays up and costs about
+1 USD per month. Local Grafana reads that archive on the **Grow-room
+History** board. Pull request
+[#80](https://github.com/TontoBlanco/grow-room-platform/pull/80) merged.
+The steps are in [Athena in Grafana](ATHENA_GRAFANA.md). I am not repeating
+the phase write-ups here. They are on the [documentation site](index.md). The 1 November screenshots are in
+[aws-poc/README.md](aws-poc/README.md). The 3 November record is the
+[test session](test-session/2026-11-03.md).
 
 ## Architecture: separating the real sensors from the lab
 
@@ -87,10 +97,13 @@ the same simulator. It did not move the tent path into EKS.
 
 ## AWS deployment (proof of concept)
 
-On November 1, 2026 I applied [`infra/aws-poc`](../infra/aws-poc) with
+The current session flow is [Phase 2](phases/phase-2-up-verify-down.md).
+On 1 November 2026 I applied [`infra/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/infra/aws-poc) with
 Terraform in my personal AWS account, region `us-west-2`, and destroyed the
-stack the same day to control cost. Karpenter and the ClusterSecretStore
-are in [`k8s/aws-poc`](../k8s/aws-poc). The write-up, architecture diagram,
+expensive resources the same day. I have applied it again since, including
+the paid test session on 3 November 2026, and I still destroy it at the end
+of the day. Karpenter and the ClusterSecretStore
+are in [`k8s/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/k8s/aws-poc). The write-up, architecture diagram,
 and the rest of the screenshots are in
 [aws-poc/README.md](aws-poc/README.md).
 
@@ -119,7 +132,7 @@ Cluster `grow-room-poc`, Active, Kubernetes 1.36: 44 pods, 3 nodes,
 5 add-ons, 6 pod identities.
 
 The EKS Argo Application is
-[`gitops/eks/sensor-service.yaml`](../gitops/eks/sensor-service.yaml). It
+[`gitops/eks/sensor-service.yaml`](https://github.com/TontoBlanco/grow-room-platform/blob/main/gitops/eks/sensor-service.yaml). It
 selects `values.yaml` and `values-eks.yaml`: three replicas, the Ingress
 for `app.mygrowroom.click` with the ACM and WAF annotations, and
 ExternalSecret `audit-db`. The k3d Application in `gitops/apps/` is
@@ -324,20 +337,21 @@ management or an apply step into the workflow. A `budget_reminder` output
 tells me to configure a $20/month AWS Budgets alert before enabling
 chargeable resources on that root. It does not create an alert.
 
-The cluster I applied is `infra/aws-poc`, not this root. It uses
+The cluster I apply is `infra/aws-poc`, not this root. It uses
 `terraform-aws-modules/eks/aws` `21.29.0`, remote state in S3 with a KMS
-key, a $25 budget, and GitHub Actions OIDC roles. I applied it by hand on
-November 1, 2026, checked `app.mygrowroom.click`, and destroyed it the same
-day. The workflow still does not plan or apply that stack. The apply role
-is AdministratorAccess, which the bootstrap file calls a demo shortcut.
-Evidence and the remaining gaps are in [aws-poc/README.md](aws-poc/README.md).
+key, a $25 budget, and GitHub Actions OIDC roles. I bring that root up for
+a session and destroy the expensive resources the same day. The workflow
+does not apply it on its own. The apply role is AdministratorAccess, which
+the bootstrap file calls a demo shortcut. The session steps are
+[Phase 2](phases/phase-2-up-verify-down.md). The 1 November gallery is
+[aws-poc/README.md](aws-poc/README.md).
 
-Passing `terraform validate` on `infra/` and applying `infra/aws-poc` once
-are different claims. I can show both without treating the local modules as
-a cloud deployment.
+Passing `terraform validate` on `infra/` and applying `infra/aws-poc` for
+a session are different claims. I can show both without treating the local
+modules as a cloud deployment.
 
-[Terraform build notes](WEEK2_TERRAFORM_GUIDE.md) ·
-[GitOps build notes](WEEK3_GITOPS_GUIDE.md)
+[Terraform build notes](weekly-guides/WEEK2_TERRAFORM_GUIDE.md) ·
+[GitOps build notes](weekly-guides/WEEK3_GITOPS_GUIDE.md)
 
 ## SLOs, alerts, and what the metrics actually prove
 
@@ -372,7 +386,7 @@ Three alert rules are included:
 The humidity expression does not filter by job, so both simulator and live
 series can trigger it. I documented that behavior rather than suggesting the
 rule is more selective than it is. Runbook notes and SLO definitions are in
-[monitoring/docs-slo.md](../monitoring/docs-slo.md).
+[monitoring/docs-slo.md](https://github.com/TontoBlanco/grow-room-platform/blob/main/monitoring/docs-slo.md).
 
 ## Audit history: practicing state and integrity checks
 
@@ -441,27 +455,30 @@ This gave me a way to practice state validation, event ordering, and
 integrity checks, and to see where an audit trail still needs an external
 trust anchor before it is evidence.
 
-[Audit implementation notes](WEEK5_AUDIT_LOG_GUIDE.md) ·
-[Compliance scope and gaps](WEEK5_COMPLIANCE_NOTES.md)
+[Audit implementation notes](weekly-guides/WEEK5_AUDIT_LOG_GUIDE.md) ·
+[Compliance scope and gaps](weekly-guides/WEEK5_COMPLIANCE_NOTES.md)
 
 ## What I intentionally did not implement
 
 I kept a list of things that would change the scope from a practical lab to
-a much larger project. The November 1 proof of concept covered some of them
-for one day and left the rest open:
+a much larger project. The proof of concept covers some of them for a
+session and leaves the rest open. The detail is on the
+[documentation site](index.md), not in a second copy here.
 
-- A standing cluster. I did apply EKS, three NAT gateways, Multi-AZ RDS, and
-  a remote state backend, then destroyed the expensive stack the same day.
-  CI still does not plan or apply `infra/aws-poc`.
-- Running the Home Assistant token inside an Argo-managed pod. AWS pods used
+- A standing cluster. I apply EKS, three NAT gateways, and Multi-AZ RDS for
+  a session, then destroy them. CI does not apply `infra/aws-poc` on its
+  own. Apply is a manual workflow, and the script asks me to type `yes`.
+- Running the Home Assistant token inside an Argo-managed pod. AWS pods use
   the simulator.
-- METRC, Leaf Data, or another state traceability API.
-- Image signing with Cosign/Sigstore; the current flow is CI → GHCR → PR → Argo.
+- A state traceability integration.
+- Kyverno set to Enforce. CI does sign images with keyless cosign, and the
+  policy is in Audit. See [Phase 5](phases/phase-5-supply-chain.md).
 - A mounted PVC for the local SQLite file. Optional local Postgres is still
-  a single database process. The proof-of-concept RDS instance is gone.
+  a single database process. Session RDS is destroyed with the stack.
 - A Raspberry Pi beside the tent. An always-on edge running Home Assistant
   and sensor-service would keep `grow-room-ha-host` scraping while the laptop
-  sleeps. I have not built that.
+  sleeps. I have not built that. Phase 8 on the roadmap is a backup of Home
+  Assistant, not that machine.
 - SSO, mTLS, WORM storage, external timestamps, or an independently anchored
   audit chain.
 - A security authorization, STIG assessment, or FedRAMP claim.
@@ -512,9 +529,10 @@ When I walk someone through the capstone, I use this order:
 4. Demonstrate `/audit/plants/{id}/history`, `/audit/integrity`, an invalid
    transition returning 409, and an event deletion returning 405.
 5. Open the local Terraform defaults and the GitHub Actions workflow, then
-   the [AWS proof-of-concept gallery](aws-poc/README.md): what CI validates,
-   what runs on k3d, what was applied in `us-west-2` on November 1, 2026,
-   and what was destroyed the same day.
+   the [documentation site](index.md): what CI validates, what runs on k3d,
+   what a paid session in `us-west-2` includes, and what `down` leaves
+   behind. The 1 November screenshots stay in
+   [aws-poc/README.md](aws-poc/README.md).
 
 The supporting commands are in the Week 2–5 guides. The AWS evidence is
 [aws-poc/README.md](aws-poc/README.md). If I expand the project, my

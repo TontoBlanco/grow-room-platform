@@ -8,7 +8,13 @@ someone else's. By the end of the week you have:
 3. A root **`infra/`** that composes them with variables and outputs.
 4. CI checks: **`terraform fmt`**, **`validate`**, **`tflint`** (and later a
    safe `plan`).
-5. A remote-state stub and an AWS Budgets **$20** reminder before any paid apply.
+5. A remote-state stub and an AWS Budgets **$20** reminder before any paid apply of this root.
+
+This guide is the local `infra/` root. It is not the later proof of concept.
+As of 3 November 2026 I apply `infra/aws-poc` for a session and keep
+`infra/telemetry` at about 1 USD per month. Those steps are on the
+[documentation site](../index.md). Do not treat this week's `$0` checks as a
+description of the whole project.
 
 You already modify Terraform at work. Job forms ask whether you have authored
 modules from scratch — this week is the evidence in a public repo.
@@ -24,7 +30,7 @@ From the unzipped week-2 pack:
 ```bash
 # From your grow-room-platform clone root
 cp -r path/to/grow-room-platform-week2/infra ./
-cp path/to/grow-room-platform-week2/docs/WEEK2_TERRAFORM_GUIDE.md ./docs/
+cp path/to/grow-room-platform-week2/docs/weekly-guides/WEEK2_TERRAFORM_GUIDE.md ./docs/weekly-guides/
 # Optionally paste README_WEEK2_SNIPPET.md into README.md roadmap
 ```
 

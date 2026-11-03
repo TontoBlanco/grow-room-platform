@@ -1,14 +1,23 @@
 # AWS proof of concept
 
-On November 1, 2026 I applied a one-time, production-style proof of concept
-in my personal AWS account, region `us-west-2`, and tore it down the same day
-to control cost. Terraform for the stack is [`infra/aws-poc`](../../infra/aws-poc).
-Cluster extras that are not in the Helm chart are in
-[`k8s/aws-poc`](../../k8s/aws-poc). The screenshots below are from that day.
-Nothing in this gallery is still running, and the hostname will not resolve.
+This page is the 1 November 2026 gallery. I apply `infra/aws-poc` in
+`us-west-2` for a session and destroy the expensive resources before I
+stop. The screenshots below are from that first day. The cluster in those
+pictures is gone, and `app.mygrowroom.click` does not resolve between
+sessions.
 
-The account id in the stack and in the console shots is `590183769702`.
-The public name was `app.mygrowroom.click`.
+As of 3 November 2026, phases 3 through 7 are done. The paid test session
+that day passed, and teardown was clean. I am not retelling it here. See
+the [test session](../test-session/2026-11-03.md) and the
+[phase pages](../index.md). The telemetry stack in `infra/telemetry` stays
+up and costs about 1 USD per month. `down` does not remove it.
+
+Terraform for the session stack is [`infra/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/infra/aws-poc).
+Cluster extras that are not in the Helm chart are in
+[`k8s/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/k8s/aws-poc).
+
+The public name was `app.mygrowroom.click`. The account id stays in the
+Terraform backend and the up script. I do not repeat it here.
 
 This did not replace the local k3d lab. Live tent readings still come from
 Home Assistant on Docker Compose. The pods in AWS used the simulator.
@@ -119,7 +128,7 @@ and an Ingress. The chart image tag at that commit is
 `ghcr.io/tontoblanco/grow-room-platform:sha-d47502e`.
 
 The EKS Application is
-[`gitops/eks/sensor-service.yaml`](../../gitops/eks/sensor-service.yaml).
+[`gitops/eks/sensor-service.yaml`](https://github.com/TontoBlanco/grow-room-platform/blob/main/gitops/eks/sensor-service.yaml).
 It renders `charts/sensor-service` with `values.yaml` and
 `values-eks.yaml`. That is what was live: three replicas, an Ingress for
 `app.mygrowroom.click` carrying the ACM certificate and WAF ACL
@@ -278,9 +287,10 @@ Separate from RDS, `infra/aws-poc/data.tf` defines an S3 bucket
 `grow-room-poc-sensor-<account>`, a Glue database `grow_room_poc`, an
 external table `readings` with date partition projection, and an Athena
 workgroup whose results are KMS-encrypted. A pod identity for service
-account `grow-room/sensor-exporter` may `s3:PutObject` under `raw/*`. There
-is no exporter Deployment in this repo, and these screenshots do not show
-objects in the bucket or an Athena query. The table's `stage` column is
+account `grow-room/sensor-exporter` may `s3:PutObject` under `raw/*`.
+These 1 November screenshots do not show objects in the bucket or an Athena
+query. The CronJob manifest is now `k8s/aws-poc/sensor-exporter.yaml`, and
+the 3 November session reported that path working. The table's `stage` column is
 optional: `scripts/ship_readings.py` adds it when `/readings` includes
 `growth_stage`, older objects omit it, and Athena returns null. Queries
 that do not select `stage` are unchanged. The EKS chart sets the stage with
@@ -326,7 +336,7 @@ public Rekor) and checks this identity:
 issuer `https://token.actions.githubusercontent.com`.
 
 That string is also the subject on
-[`k8s/aws-poc/kyverno-verify-images.yaml`](../../k8s/aws-poc/kyverno-verify-images.yaml).
+[`k8s/aws-poc/kyverno-verify-images.yaml`](https://github.com/TontoBlanco/grow-room-platform/blob/main/k8s/aws-poc/kyverno-verify-images.yaml).
 The policy stays in **Audit**. `mutateDigest` is false while the failure
 action is Audit (Kyverno rejects `true`). `verifyDigest` is false because the
 chart deploys a tag. After a PolicyReport pass on a `sha-*` image, switch
@@ -341,21 +351,23 @@ referrer bundles were invisible to Kyverno 1.19 (`no signatures found`).
 
 ## Limits / next steps
 
-- The proof of concept was destroyed after the November 1, 2026 demo. These
-  screenshots are the record. There is no standing EKS cluster to log into.
-- One region, `us-west-2`. No second region and no failover drill beyond
-  Multi-AZ inside that region.
+- There is no standing EKS cluster between sessions. These screenshots are
+  the 1 November record. The 3 November session is a separate page, and
+  teardown that day was clean.
+- One region, `us-west-2`. No second region. The 3 November session did
+  include an RDS Multi-AZ failover, about 30 seconds. That drill is in
+  [DRILLS.md](DRILLS.md).
 - Cloud pods ran `SENSOR_SOURCE=simulator`. Live AC Infinity readings stayed
   on the Docker Compose path. I did not put the Home Assistant token in the
   cluster.
-- The monitoring Application in `gitops/apps/monitoring.yaml` still uses
-  `monitoring/values-k3d.yaml`, including a scrape of `host.k3d.internal`,
-  which does not exist on EKS. The sensor-service Application for this
-  cluster is `gitops/eks/sensor-service.yaml` and selects `values-eks.yaml`.
+- The k3d monitoring Application still uses `monitoring/values-k3d.yaml`,
+  including a scrape of `host.k3d.internal`. On EKS, `monitoring/values-eks.yaml`
+  replaces that list with an empty one so the laptop address is not a target.
 - Argo CD, the load balancer controller, ExternalDNS, External Secrets, and
-  Karpenter were installed for the demo. `k8s/aws-poc/` only contains the
-  Karpenter NodePool and the ClusterSecretStore. The other install manifests
-  are not in the repo.
+  Karpenter are installed by `scripts/aws-poc.ps1` during `up`. `k8s/aws-poc/`
+  contains the Karpenter NodePool, the ClusterSecretStore, the Kyverno
+  policy, and the sensor-exporter CronJob. The controller install commands
+  live in the script, not as extra manifests.
 - The checked-in Terraform workflow still runs `fmt`, `validate`, and
   `tflint` in `infra/` with Terraform 1.9.8. It does not plan or apply
   `infra/aws-poc`. The OIDC apply role is AdministratorAccess, limited by
@@ -364,11 +376,15 @@ referrer bundles were invisible to Kyverno 1.19 (`no signatures found`).
 - WAF logging was not enabled. VPC flow logs and EKS control-plane logs
   were kept for one day. RDS backup retention was one day, deletion
   protection was off, and the final snapshot was skipped.
-- S3, Glue, and Athena are defined. I do not have a screenshot of sensor
-  objects or an Athena query from this demo.
+- S3, Glue, and Athena for the session bucket are defined here. The
+  persistent telemetry stack is a different root, `infra/telemetry`, and it
+  stays up at about 1 USD per month. I do not have an Athena screenshot in
+  this 1 November gallery. The 3 November session reported the exporter path
+  working.
 - The bootstrap root is written so the state bucket, its KMS key, the
   Route 53 zone, the budget, and the OIDC roles can outlive a session.
-  The expensive pieces (EKS, NAT, ALB, RDS) are what I built and removed.
+  The expensive pieces (EKS, NAT, the load balancer, RDS) are what `down`
+  removes.
 - This was not a security authorization. No ATO, STIG, or FedRAMP claim,
   and the audit hash chain is still not an external trust anchor.
 
@@ -381,8 +397,8 @@ referrer bundles were invisible to Kyverno 1.19 (`no signatures found`).
 - [ADR-0005: AWS WAF on the ALB](../adr/0005-aws-waf-on-alb.md)
 - [ADR-0006: RDS Multi-AZ](../adr/0006-rds-multi-az.md)
 
-Code: [`infra/aws-poc`](../../infra/aws-poc),
-[`k8s/aws-poc`](../../k8s/aws-poc), and
-[`gitops/eks/sensor-service.yaml`](../../gitops/eks/sensor-service.yaml).
+Code: [`infra/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/infra/aws-poc),
+[`k8s/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/k8s/aws-poc), and
+[`gitops/eks/sensor-service.yaml`](https://github.com/TontoBlanco/grow-room-platform/blob/main/gitops/eks/sensor-service.yaml).
 Local lab:
-[README](../../README.md) and [capstone](../CAPSTONE.md).
+[README](https://github.com/TontoBlanco/grow-room-platform/blob/main/README.md) and [capstone](../CAPSTONE.md).
