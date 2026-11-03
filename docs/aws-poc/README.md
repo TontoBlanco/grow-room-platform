@@ -280,7 +280,11 @@ external table `readings` with date partition projection, and an Athena
 workgroup whose results are KMS-encrypted. A pod identity for service
 account `grow-room/sensor-exporter` may `s3:PutObject` under `raw/*`. There
 is no exporter Deployment in this repo, and these screenshots do not show
-objects in the bucket or an Athena query.
+objects in the bucket or an Athena query. The table's `stage` column is
+optional: `scripts/ship_readings.py` adds it when `/readings` includes
+`growth_stage`, older objects omit it, and Athena returns null. Queries
+that do not select `stage` are unchanged. The EKS chart sets the stage with
+`env.GROW_STAGE` in `charts/sensor-service/values-eks.yaml` (default `veg`).
 
 ## Cost
 

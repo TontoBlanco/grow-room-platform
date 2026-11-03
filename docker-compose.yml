@@ -7,6 +7,8 @@ services:
     environment:
       SENSOR_SOURCE: ${SENSOR_SOURCE:-simulator}
       LEAF_TEMP_OFFSET_C: ${LEAF_TEMP_OFFSET_C:-0}
+      # seedling (or clone), veg, flower, late_flower. Default veg is 0.8-1.2 kPa.
+      GROW_STAGE: ${GROW_STAGE:-veg}
       # The image runs as non-root (uid 10001). AuditStore creates the parent
       # directory of AUDIT_DB_PATH, and ./data is not writable inside the
       # container. /tmp already exists and is writable.

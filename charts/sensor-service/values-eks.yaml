@@ -1,6 +1,10 @@
 # charts/sensor-service/values-eks.yaml - fill from: terraform output
 replicaCount: 3
 
+# Tent-wide stage for the aws-poc Argo app. veg is 0.8-1.2 kPa leaf VPD.
+env:
+  GROW_STAGE: veg
+
 audit:
   databaseUrlSecret: audit-db
 
