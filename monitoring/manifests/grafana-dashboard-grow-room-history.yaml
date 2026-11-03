@@ -1,0 +1,398 @@
+# Grafana sidecar picks ConfigMaps labeled grafana_dashboard=1 (see values-k3d.yaml).
+# Keep this document identical to monitoring/dashboards/grow-room-history.json
+# (tests/test_grafana_history_dashboard.py checks that).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  name: grafana-dashboard-grow-room-history
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: grow-room-platform
+data:
+  grow-room-history.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "description": "Long-term tent history from Amazon Athena (grow_room_telemetry.readings, workgroup grow-room-telemetry, us-west-2). Default range is 30 days. Auto-refresh is off: each panel is its own query, and a full load is six partition-pruned scans. At the volume ship_readings.py writes, each scan is on the order of 10-20 MB over 30 days, well under a cent at $5 per TB. The workgroup cancels a query that would scan more than 1 GiB (about half a cent). Stage is optional. Null uses the veg band, 0.8 to 1.2 kPa.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [
+        {
+          "asDropdown": false,
+          "icon": "dashboard",
+          "includeVars": false,
+          "keepTime": false,
+          "tags": [],
+          "targetBlank": false,
+          "title": "Grow-room VPD",
+          "tooltip": "Live Prometheus board",
+          "type": "link",
+          "url": "/d/grow-room-vpd"
+        }
+      ],
+      "liveNow": false,
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Daily VPD (avg / min / max)",
+          "id": 1,
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "athena-grow-room"
+          },
+          "description": "vpd_kpa per day. Filters the partition column dt with the dashboard time range (UTC) so Athena reads only those days.",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-athena-datasource",
+                "uid": "athena-grow-room"
+              },
+              "rawSQL": "SELECT\n  cast(dt AS timestamp) AS time,\n  round(avg(vpd_kpa), 3) AS avg_vpd,\n  round(min(vpd_kpa), 3) AS min_vpd,\n  round(max(vpd_kpa), 3) AS max_vpd\nFROM grow_room_telemetry.readings\nWHERE dt >= '${__from:date:YYYY-MM-DD}'\n  AND dt <= '${__to:date:YYYY-MM-DD}'\nGROUP BY dt\nORDER BY dt\n",
+              "format": 0,
+              "connectionArgs": {
+                "region": "us-west-2",
+                "catalog": "AwsDataCatalog",
+                "database": "grow_room_telemetry",
+                "resultReuseEnabled": false,
+                "resultReuseMaxAgeInMinutes": 60
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 3,
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "spanNulls": true,
+                "showPoints": "always",
+                "pointSize": 5
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Daily temperature (avg / min / max)",
+          "id": 2,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 8
+          },
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "athena-grow-room"
+          },
+          "description": "temperature_c per day, in Celsius. Filters the partition column dt with the dashboard time range (UTC) so Athena reads only those days.",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-athena-datasource",
+                "uid": "athena-grow-room"
+              },
+              "rawSQL": "SELECT\n  cast(dt AS timestamp) AS time,\n  round(avg(temperature_c), 2) AS avg_temp_c,\n  round(min(temperature_c), 2) AS min_temp_c,\n  round(max(temperature_c), 2) AS max_temp_c\nFROM grow_room_telemetry.readings\nWHERE dt >= '${__from:date:YYYY-MM-DD}'\n  AND dt <= '${__to:date:YYYY-MM-DD}'\nGROUP BY dt\nORDER BY dt\n",
+              "format": 0,
+              "connectionArgs": {
+                "region": "us-west-2",
+                "catalog": "AwsDataCatalog",
+                "database": "grow_room_telemetry",
+                "resultReuseEnabled": false,
+                "resultReuseMaxAgeInMinutes": 60
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 2,
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "spanNulls": true,
+                "showPoints": "always",
+                "pointSize": 5
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Daily relative humidity (avg / min / max)",
+          "id": 3,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          },
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "athena-grow-room"
+          },
+          "description": "humidity_percent per day. Filters the partition column dt with the dashboard time range (UTC) so Athena reads only those days.",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-athena-datasource",
+                "uid": "athena-grow-room"
+              },
+              "rawSQL": "SELECT\n  cast(dt AS timestamp) AS time,\n  round(avg(humidity_percent), 1) AS avg_rh,\n  round(min(humidity_percent), 1) AS min_rh,\n  round(max(humidity_percent), 1) AS max_rh\nFROM grow_room_telemetry.readings\nWHERE dt >= '${__from:date:YYYY-MM-DD}'\n  AND dt <= '${__to:date:YYYY-MM-DD}'\nGROUP BY dt\nORDER BY dt\n",
+              "format": 0,
+              "connectionArgs": {
+                "region": "us-west-2",
+                "catalog": "AwsDataCatalog",
+                "database": "grow_room_telemetry",
+                "resultReuseEnabled": false,
+                "resultReuseMaxAgeInMinutes": 60
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "spanNulls": true,
+                "showPoints": "always",
+                "pointSize": 5
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Percent of readings in the target band",
+          "id": 4,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 16
+          },
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "athena-grow-room"
+          },
+          "description": "Percent of the day's rows whose vpd_kpa falls in the stage band. flower, flowering, and bloom use 1.2 to 1.5 kPa. A null stage, a blank stage, veg, and every other value use 0.8 to 1.2 kPa. Filters the partition column dt with the dashboard time range (UTC) so Athena reads only those days.",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-athena-datasource",
+                "uid": "athena-grow-room"
+              },
+              "rawSQL": "SELECT\n  cast(dt AS timestamp) AS time,\n  round(\n    100.0 * count_if(\n      vpd_kpa BETWEEN\n        CASE\n          WHEN lower(trim(coalesce(stage, ''))) IN ('flower', 'flowering', 'bloom') THEN 1.2\n          ELSE 0.8\n        END\n        AND\n        CASE\n          WHEN lower(trim(coalesce(stage, ''))) IN ('flower', 'flowering', 'bloom') THEN 1.5\n          ELSE 1.2\n        END\n    ) / count(*),\n    1\n  ) AS pct_in_band\nFROM grow_room_telemetry.readings\nWHERE dt >= '${__from:date:YYYY-MM-DD}'\n  AND dt <= '${__to:date:YYYY-MM-DD}'\nGROUP BY dt\nORDER BY dt\n",
+              "format": 0,
+              "connectionArgs": {
+                "region": "us-west-2",
+                "catalog": "AwsDataCatalog",
+                "database": "grow_room_telemetry",
+                "resultReuseEnabled": false,
+                "resultReuseMaxAgeInMinutes": 60
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 1,
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "spanNulls": true,
+                "showPoints": "always",
+                "pointSize": 5
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Readings by source",
+          "id": 5,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 16
+          },
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "athena-grow-room"
+          },
+          "description": "Row count per day and source. A null or blank source is counted as unknown. Filters the partition column dt with the dashboard time range (UTC) so Athena reads only those days.",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-athena-datasource",
+                "uid": "athena-grow-room"
+              },
+              "rawSQL": "SELECT\n  cast(dt AS timestamp) AS time,\n  coalesce(nullif(trim(source), ''), 'unknown') AS source,\n  count(*) AS samples\nFROM grow_room_telemetry.readings\nWHERE dt >= '${__from:date:YYYY-MM-DD}'\n  AND dt <= '${__to:date:YYYY-MM-DD}'\nGROUP BY dt, coalesce(nullif(trim(source), ''), 'unknown')\nORDER BY dt, source\n",
+              "format": 0,
+              "connectionArgs": {
+                "region": "us-west-2",
+                "catalog": "AwsDataCatalog",
+                "database": "grow_room_telemetry",
+                "resultReuseEnabled": false,
+                "resultReuseMaxAgeInMinutes": 60
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "spanNulls": true,
+                "showPoints": "always",
+                "pointSize": 5
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          }
+        },
+        {
+          "type": "table",
+          "title": "Daily climate",
+          "id": 6,
+          "gridPos": {
+            "h": 12,
+            "w": 24,
+            "x": 0,
+            "y": 24
+          },
+          "datasource": {
+            "type": "grafana-athena-datasource",
+            "uid": "athena-grow-room"
+          },
+          "description": "One row per dt in the selected range, with the same stage band as the percent panel. Filters the partition column dt with the dashboard time range (UTC) so Athena reads only those days.",
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-athena-datasource",
+                "uid": "athena-grow-room"
+              },
+              "rawSQL": "SELECT\n  dt,\n  count(*) AS samples,\n  round(avg(vpd_kpa), 3) AS avg_vpd,\n  round(min(vpd_kpa), 3) AS min_vpd,\n  round(max(vpd_kpa), 3) AS max_vpd,\n  round(avg(temperature_c), 2) AS avg_temp_c,\n  round(min(temperature_c), 2) AS min_temp_c,\n  round(max(temperature_c), 2) AS max_temp_c,\n  round(avg(humidity_percent), 1) AS avg_rh,\n  round(min(humidity_percent), 1) AS min_rh,\n  round(max(humidity_percent), 1) AS max_rh,\n  round(\n    100.0 * count_if(\n      vpd_kpa BETWEEN\n        CASE\n          WHEN lower(trim(coalesce(stage, ''))) IN ('flower', 'flowering', 'bloom') THEN 1.2\n          ELSE 0.8\n        END\n        AND\n        CASE\n          WHEN lower(trim(coalesce(stage, ''))) IN ('flower', 'flowering', 'bloom') THEN 1.5\n          ELSE 1.2\n        END\n    ) / count(*),\n    1\n  ) AS pct_in_band\nFROM grow_room_telemetry.readings\nWHERE dt >= '${__from:date:YYYY-MM-DD}'\n  AND dt <= '${__to:date:YYYY-MM-DD}'\nGROUP BY dt\nORDER BY dt\n",
+              "format": 1,
+              "connectionArgs": {
+                "region": "us-west-2",
+                "catalog": "AwsDataCatalog",
+                "database": "grow_room_telemetry",
+                "resultReuseEnabled": false,
+                "resultReuseMaxAgeInMinutes": 60
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "sortBy": [
+              {
+                "displayName": "dt",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "refresh": "",
+      "schemaVersion": 39,
+      "tags": [
+        "grow-room",
+        "athena",
+        "vpd"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-30d",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "utc",
+      "title": "Grow-room History",
+      "uid": "grow-room-history",
+      "version": 1
+    }

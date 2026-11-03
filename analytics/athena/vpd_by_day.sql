@@ -1,5 +1,7 @@
 -- analytics/athena/vpd_by_day.sql
 -- Daily VPD summary. Band 0.8-1.2 kPa = veg; use 1.2-1.5 for flower.
+-- Stage-aware history (null stage falls back to the veg band) is
+-- analytics/athena/history_by_day.sql and the Grow-room History dashboard.
 SELECT dt,
        count(*)                                                        AS samples,
        round(avg(vpd_kpa), 2)                                          AS avg_vpd,

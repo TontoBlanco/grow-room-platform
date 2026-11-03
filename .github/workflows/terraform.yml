@@ -38,6 +38,22 @@ jobs:
       - run: terraform init -backend=false
       - run: terraform validate
 
+  # infra/telemetry is its own root (Terraform >= 1.10, S3 backend). The fmt
+  # job above already walks it. Validate it here so the Grafana reader role
+  # is checked without touching the Week 2 root's 1.9 pin.
+  validate-telemetry:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/telemetry
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+      - run: terraform init -backend=false
+      - run: terraform validate
+
   tflint:
     runs-on: ubuntu-latest
     steps:
