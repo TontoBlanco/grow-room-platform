@@ -219,7 +219,7 @@ Create the secret before this upgrade. The pod mounts it as optional, reads
 the cert only in the `athena-rolesanywhere` sidecar, and serves IMDSv2 at
 `http://127.0.0.1:9911`. Grafana's Athena plugin uses auth type `default` and
 `AWS_EC2_METADATA_SERVICE_ENDPOINT`. The chart
-installs `grafana-athena-datasource 3.4.2`. The first start also downloads
+installs `grafana-athena-datasource@3.4.2`. The first start also downloads
 `aws_signing_helper` 1.8.5 (sha256-checked) and that plugin, so the rollout
 can sit at 0/1 for a few minutes. The machine needs
 egress to `public.ecr.aws`, `rolesanywhere.amazonaws.com`, and `grafana.com`.

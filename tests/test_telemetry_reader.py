@@ -96,7 +96,7 @@ def test_grafana_reader_is_least_privilege_and_separate():
 
 
 def test_grafana_values_pin_the_helper_and_do_not_carry_secrets():
-    assert "grafana-athena-datasource 3.4.2" in VALUES
+    assert "grafana-athena-datasource@3.4.2" in VALUES
     assert "http://127.0.0.1:9911" in VALUES
     assert "secretName: grafana-athena-identity" in VALUES
     assert "optional: true" in VALUES
@@ -113,7 +113,7 @@ def test_runbook_uses_the_real_names():
         "grafana-athena-identity",
         "grow-room-grafana-reader",
         "athena-grow-room",
-        "grafana-athena-datasource 3.4.2",
+        "grafana-athena-datasource@3.4.2",
         "http://127.0.0.1:9911",
         "terraform -chdir=infra/telemetry",
         "helm upgrade --install monitoring",
