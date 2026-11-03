@@ -1,6 +1,6 @@
 # Week 5 write-up outline (architecture + blog)
 
-The drafted portfolio page is the repo [README](../README.md). The long
+The drafted portfolio page is the repo [README](https://github.com/TontoBlanco/grow-room-platform/blob/main/README.md). The long
 architecture write-up, ready to edit into a post, is [CAPSTONE.md](CAPSTONE.md).
 Living diagram (Atlas owns the page):
 [Grow-room Platform Map](https://cursor.com/canvas/store-6a197a3b-901d-4b50-9079-9a539befde02/debaff3b-9e35-48ab-bab0-59761b62fb09).
@@ -16,21 +16,21 @@ automated from this pack.
 ```mermaid
 flowchart TB
   subgraph sources [Sensor inputs]
-    HA[Home Assistant / AC Infinity]
+    HA["Home Assistant and AC Infinity"]
     SIM[Simulator]
   end
 
   subgraph app [sensor-service FastAPI]
-    READ[/readings /metrics]
-    AUD[/audit API]
-    FSM[Plant state FSM]
-    STORE[(SQLite audit.db<br/>append-only events)]
+    READ["readings and metrics"]
+    AUD["audit API"]
+    FSM["Plant state machine"]
+    STORE[("SQLite audit.db")]
   end
 
   subgraph platform [k3d GitOps lab]
     ARGO[Argo CD]
     PROM[Prometheus]
-    GRAF[Grafana VPD]
+    GRAF["Grafana VPD"]
   end
 
   HA --> READ
@@ -81,8 +81,8 @@ practicing compliance evidence patterns; it is not a licensed METRC client.
 6. **Security angle** — STIG-*style* checklist, Trivy already in CI, least
    privilege on the lab; explicitly not an ATO.
 7. **What I skipped on purpose** — paid EKS/RDS, real METRC, Cosign (for now).
-8. **What's next** — Terraform Associate exam; job applications in ag/cannabis
-   tech; optional Pi edge.
+8. **What's next** — Terraform Associate exam; job applications in agriculture
+   and platform roles; optional Pi edge.
 9. **Close** — Link the GitHub repo; invite feedback.
 
 **Tone**
@@ -116,4 +116,4 @@ Canvas: *Published write-up; exam booked or passed.*
 |---|---|
 | Write-up | Use this outline; publish |
 | Terraform Associate | Book a Pearson/VUE slot; keep practicing with Week 2 modules |
-| Job push | Tailor resume bullets to *this* portfolio only; ag/cannabis + platform roles |
+| Job push | Tailor resume bullets to *this* portfolio only; agriculture and platform roles |

@@ -668,5 +668,5 @@ lab unless you actually did.
 
 <a id="runbook-sensor-scrape-down"></a>
 
-See the full checklist in [`monitoring/docs-slo.md`](../monitoring/docs-slo.md).
+See the full checklist in [`monitoring/docs-slo.md`](https://github.com/TontoBlanco/grow-room-platform/blob/main/monitoring/docs-slo.md).
 Short form: Pod Ready → curl `/metrics` → ServiceMonitor → `/targets` → Argo.

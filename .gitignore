@@ -24,3 +24,6 @@ infra/aws-poc/terraform.tfvars
 .venv-shipper/
 infra/telemetry/.terraform/
 infra/telemetry/*.tfplan
+
+# MkDocs build output. The site is published by GitHub Pages.
+/site/

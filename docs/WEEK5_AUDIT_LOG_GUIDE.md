@@ -81,10 +81,10 @@ a new Application for Week 5 unless you opt into the PVC snippet.
 
 ## Step 1: Why seed-to-sale audit logs matter
 
-Commercial cannabis (and many other regulated ag verticals) tracks **every plant
-and every state change** so a regulator can reconstruct: where did this unit
-come from, who moved it, when, and into what status? That trail is the difference
-between "we think we are compliant" and "here is the evidence package."
+Regulated agriculture tracks **every plant and every state change** so an
+inspector can reconstruct where a unit came from, who moved it, when, and into
+what status. That trail is the difference between "we think we are compliant"
+and "here is the evidence package."
 
 ### DoD / ATO analogy (use carefully)
 

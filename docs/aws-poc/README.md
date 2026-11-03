@@ -2,13 +2,13 @@
 
 On November 1, 2026 I applied a one-time, production-style proof of concept
 in my personal AWS account, region `us-west-2`, and tore it down the same day
-to control cost. Terraform for the stack is [`infra/aws-poc`](../../infra/aws-poc).
+to control cost. Terraform for the stack is [`infra/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/infra/aws-poc).
 Cluster extras that are not in the Helm chart are in
-[`k8s/aws-poc`](../../k8s/aws-poc). The screenshots below are from that day.
+[`k8s/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/k8s/aws-poc). The screenshots below are from that day.
 Nothing in this gallery is still running, and the hostname will not resolve.
 
-The account id in the stack and in the console shots is `590183769702`.
-The public name was `app.mygrowroom.click`.
+The public name was `app.mygrowroom.click`. The account id stays in the
+Terraform backend and the up script. I do not repeat it here.
 
 This did not replace the local k3d lab. Live tent readings still come from
 Home Assistant on Docker Compose. The pods in AWS used the simulator.
@@ -119,7 +119,7 @@ and an Ingress. The chart image tag at that commit is
 `ghcr.io/tontoblanco/grow-room-platform:sha-d47502e`.
 
 The EKS Application is
-[`gitops/eks/sensor-service.yaml`](../../gitops/eks/sensor-service.yaml).
+[`gitops/eks/sensor-service.yaml`](https://github.com/TontoBlanco/grow-room-platform/blob/main/gitops/eks/sensor-service.yaml).
 It renders `charts/sensor-service` with `values.yaml` and
 `values-eks.yaml`. That is what was live: three replicas, an Ingress for
 `app.mygrowroom.click` carrying the ACM certificate and WAF ACL
@@ -322,7 +322,7 @@ public Rekor) and checks this identity:
 issuer `https://token.actions.githubusercontent.com`.
 
 That string is also the subject on
-[`k8s/aws-poc/kyverno-verify-images.yaml`](../../k8s/aws-poc/kyverno-verify-images.yaml).
+[`k8s/aws-poc/kyverno-verify-images.yaml`](https://github.com/TontoBlanco/grow-room-platform/blob/main/k8s/aws-poc/kyverno-verify-images.yaml).
 The policy stays in **Audit**. `mutateDigest` is false while the failure
 action is Audit (Kyverno rejects `true`). `verifyDigest` is false because the
 chart deploys a tag. After a PolicyReport pass on a `sha-*` image, switch
@@ -377,8 +377,8 @@ referrer bundles were invisible to Kyverno 1.19 (`no signatures found`).
 - [ADR-0005: AWS WAF on the ALB](../adr/0005-aws-waf-on-alb.md)
 - [ADR-0006: RDS Multi-AZ](../adr/0006-rds-multi-az.md)
 
-Code: [`infra/aws-poc`](../../infra/aws-poc),
-[`k8s/aws-poc`](../../k8s/aws-poc), and
-[`gitops/eks/sensor-service.yaml`](../../gitops/eks/sensor-service.yaml).
+Code: [`infra/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/infra/aws-poc),
+[`k8s/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/k8s/aws-poc), and
+[`gitops/eks/sensor-service.yaml`](https://github.com/TontoBlanco/grow-room-platform/blob/main/gitops/eks/sensor-service.yaml).
 Local lab:
-[README](../../README.md) and [capstone](../CAPSTONE.md).
+[README](https://github.com/TontoBlanco/grow-room-platform/blob/main/README.md) and [capstone](../CAPSTONE.md).

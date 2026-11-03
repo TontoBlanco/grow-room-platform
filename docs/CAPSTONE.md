@@ -20,7 +20,7 @@ pay attention to, so it made sense to build around it.
 The result is `grow-room-platform`: a FastAPI service for grow-room sensor
 data, a local Kubernetes and GitOps lab, a small event-history system, and
 a production-style AWS EKS deployment I applied once and then destroyed.
-The growing setup is a personal home cannabis project. The software is not a
+The growing setup is a personal indoor plant grow tent. The software is not a
 commercial cultivation platform, a state traceability integration, or a
 production-authorized system.
 
@@ -28,7 +28,8 @@ My goal wasn't to build the biggest architecture I could draw. It was to
 build something I could run, test, break, fix, and explain without overstating
 what I had done.
 
-[README and setup instructions](../README.md) ·
+[README and setup instructions](https://github.com/TontoBlanco/grow-room-platform/blob/main/README.md) ·
+[Documentation site](index.md) ·
 [Living platform map](https://cursor.com/canvas/store-6a197a3b-901d-4b50-9079-9a539befde02/debaff3b-9e35-48ab-bab0-59761b62fb09)
 
 ## What I completed
@@ -87,10 +88,10 @@ the same simulator. It did not move the tent path into EKS.
 
 ## AWS deployment (proof of concept)
 
-On November 1, 2026 I applied [`infra/aws-poc`](../infra/aws-poc) with
+On November 1, 2026 I applied [`infra/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/infra/aws-poc) with
 Terraform in my personal AWS account, region `us-west-2`, and destroyed the
 stack the same day to control cost. Karpenter and the ClusterSecretStore
-are in [`k8s/aws-poc`](../k8s/aws-poc). The write-up, architecture diagram,
+are in [`k8s/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/k8s/aws-poc). The write-up, architecture diagram,
 and the rest of the screenshots are in
 [aws-poc/README.md](aws-poc/README.md).
 
@@ -119,7 +120,7 @@ Cluster `grow-room-poc`, Active, Kubernetes 1.36: 44 pods, 3 nodes,
 5 add-ons, 6 pod identities.
 
 The EKS Argo Application is
-[`gitops/eks/sensor-service.yaml`](../gitops/eks/sensor-service.yaml). It
+[`gitops/eks/sensor-service.yaml`](https://github.com/TontoBlanco/grow-room-platform/blob/main/gitops/eks/sensor-service.yaml). It
 selects `values.yaml` and `values-eks.yaml`: three replicas, the Ingress
 for `app.mygrowroom.click` with the ACM and WAF annotations, and
 ExternalSecret `audit-db`. The k3d Application in `gitops/apps/` is
@@ -366,7 +367,7 @@ Three alert rules are included:
 The humidity expression does not filter by job, so both simulator and live
 series can trigger it. I documented that behavior rather than suggesting the
 rule is more selective than it is. Runbook notes and SLO definitions are in
-[monitoring/docs-slo.md](../monitoring/docs-slo.md).
+[monitoring/docs-slo.md](https://github.com/TontoBlanco/grow-room-platform/blob/main/monitoring/docs-slo.md).
 
 ## Audit history: practicing state and integrity checks
 

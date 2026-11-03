@@ -26,7 +26,11 @@ There are two environments.
   Evidence is in [docs/aws-poc/README.md](docs/aws-poc/README.md).
 
 For the longer explanation of the design and what I learned, see
-[docs/CAPSTONE.md](docs/CAPSTONE.md).
+[docs/CAPSTONE.md](docs/CAPSTONE.md). The full documentation site, including
+the architecture, each build phase, the Grafana guide, and the security
+notes, starts at [docs/index.md](docs/index.md). GitHub Actions builds that
+site on every pull request and publishes it from `main` to
+[GitHub Pages](https://tontoblanco.github.io/grow-room-platform/).
 
 ## Why I built it
 
