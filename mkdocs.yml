@@ -43,6 +43,7 @@ nav:
   - Architecture: architecture.md
   - Grafana guide: grafana.md
   - Athena in Grafana: ATHENA_GRAFANA.md
+  - Grow alerts: GROW_ALERTS.md
   - Phases:
       - Week 1 — Application and CI: phases/week-1-application-and-ci.md
       - Week 2 — Terraform for the local lab: phases/week-2-terraform.md

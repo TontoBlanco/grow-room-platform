@@ -1,0 +1,14 @@
+{{- $stale := .Values.alerts.staleShipper.enabled }}
+{{- $vpd := .Values.alerts.vpdOutOfBand.enabled }}
+{{- $certs := .Values.alerts.certExpiry.enabled }}
+{{- if or $stale $vpd $certs }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grow-alerts-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grow-alerts.labels" . | nindent 4 }}
+data:
+  grow_alerts.py.b64: {{ .Files.Get "files/grow_alerts.py" | b64enc | quote }}
+{{- end }}

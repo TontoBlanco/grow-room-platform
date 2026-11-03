@@ -192,3 +192,5 @@ Alertmanager on EKS sends to the SNS topic `grow-room-poc-alerts`. The subject i
 | `TargetDown` | kube-prometheus-stack, not my rule file | A target in a job is unreachable. On 3 November this was `grow-room-ha-host` on EKS, which should not be scraped there. |
 
 `GrowRoomTestAlert` in the 3 November mail was a test message, not a climate rule.
+
+Four later alerts cover things the AC Infinity app does not already notify you about: a stale S3 shipper, a day of VPD outside the stage band, certificate expiry, and probe drift. They are off until you enable them. The write-up is [Grow alerts](GROW_ALERTS.md). The humidity rule above is the one that overlaps the app, and it is not part of that set.

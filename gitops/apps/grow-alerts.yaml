@@ -1,0 +1,24 @@
+# Optional alerts. Defaults render an empty release: every toggle is false.
+# Argo still tracks the chart so flipping a value in git is the on switch.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grow-alerts
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/TontoBlanco/grow-room-platform.git
+    targetRevision: HEAD
+    path: charts/grow-alerts
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

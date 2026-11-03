@@ -6,3 +6,4 @@ kind: Kustomization
 resources:
   - sensor-service.yaml
   - monitoring.yaml
+  - grow-alerts.yaml

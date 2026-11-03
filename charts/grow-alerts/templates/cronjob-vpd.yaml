@@ -1,0 +1,71 @@
+{{- if .Values.alerts.vpdOutOfBand.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: grow-vpd-day
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grow-alerts.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.alerts.vpdOutOfBand.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          restartPolicy: Never
+          {{- include "grow-alerts.jobPodSecurity" . | nindent 10 }}
+          containers:
+            - name: vpd-day
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  {{ include "grow-alerts.decode" . }}
+                  python -m pip install --no-cache-dir --target /tmp/py boto3
+                  PYTHONPATH=/tmp/py exec python /tmp/grow_alerts.py vpd-day \
+                    --workgroup {{ .Values.alerts.vpdOutOfBand.workgroup | quote }} \
+                    --database {{ .Values.alerts.vpdOutOfBand.database | quote }} \
+                    --table {{ .Values.alerts.vpdOutOfBand.table | quote }} \
+                    --region {{ .Values.alerts.vpdOutOfBand.region | quote }} \
+                    --outside-share {{ .Values.alerts.vpdOutOfBand.outsideShare | quote }} \
+                    --lookback-days {{ .Values.alerts.vpdOutOfBand.lookbackDays | quote }} \
+                    --min-samples {{ .Values.alerts.vpdOutOfBand.minSamples | quote }} \
+                    --namespace {{ .Release.Namespace | quote }} \
+                    --alertmanager-url {{ include "grow-alerts.alertmanagerURL" . | quote }}
+              env:
+                - name: HOME
+                  value: /tmp
+                - name: AWS_REGION
+                  value: {{ .Values.alerts.vpdOutOfBand.region | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.alerts.vpdOutOfBand.region | quote }}
+                - name: AWS_CONTAINER_CREDENTIALS_FULL_URI
+                  value: {{ include "grow-alerts.credentialURI" . | quote }}
+              {{- include "grow-alerts.containerSecurity" . | nindent 14 }}
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          volumes:
+            - name: script
+              configMap:
+                name: grow-alerts-script
+            - name: tmp
+              emptyDir: {}
+{{- end }}

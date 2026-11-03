@@ -14,15 +14,9 @@ Done and working. Pull request [#80](https://github.com/TontoBlanco/grow-room-pl
 
 ## 3. Grow alerts the controller cannot see
 
-AC Infinity already alarms on its own sensors. I do not want a second email for the same humidity reading. The alerts I still want are the ones the controller does not see, and I want them easy to turn off.
+Done. The write-up is [Grow alerts](../GROW_ALERTS.md). Each alert has its own Helm switch in `charts/grow-alerts/values.yaml`, and every switch defaults to off. An off switch renders no object.
 
-Candidates, none of them scheduled:
-
-- The host scrape `grow-room-ha-host` is down, while the simulator is up. That is the laptop path, not the tent's own alarm.
-- Freshness of the live series, as opposed to `SensorDataStale` on the simulator job.
-- A port that should be on and is reporting power 0.
-
-They should be toggleable. A single Helm value is enough. I will not add them by copying the controller's humidity rule.
+The four alerts are a stale S3 shipper, a day of VPD outside the stage band, certificate expiry, and probe drift against the controller's reported VPD. They do not repeat the app's temperature and humidity alarms. The earlier candidates (the host scrape being down, and a port reporting power 0) are not in this set. The host scrape is the laptop path, and the controller already shows port power.
 
 ## 4. Phase 8 — Home Assistant moves between the house and AWS
 

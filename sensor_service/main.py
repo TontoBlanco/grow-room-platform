@@ -15,6 +15,7 @@ from sensor_service.config import build_source, leaf_offset_c
 from sensor_service.mood import BANDS, mood_for_vpd
 from sensor_service.sources import Source
 from sensor_service.stage import GrowthStage, load_growth_stage
+from sensor_service.vpd import vpd_kpa
 
 # Own registry so tests can build multiple apps without duplicate-metric errors.
 registry = CollectorRegistry()
@@ -127,6 +128,20 @@ def _publish_metrics(data: dict) -> None:
             "grow_probe_vpd_kpa",
             "Internal probe VPD reported by Home Assistant, converted to kPa",
         ).set(probe["vpd_kpa"])
+    # Air VPD from the probe's own temp/RH, with no leaf offset. The controller
+    # reports its own VPD the same way. A leaf offset would look like drift.
+    probe_temp = probe.get("temperature_c")
+    probe_rh = probe.get("humidity_percent")
+    if probe_temp is not None and probe_rh is not None:
+        try:
+            calculated = vpd_kpa(probe_temp, probe_rh, 0.0)
+        except ValueError:
+            calculated = None
+        if calculated is not None:
+            _optional_gauge(
+                "grow_probe_calculated_vpd_kpa",
+                "Air VPD calculated by sensor-service from probe temperature and humidity, kPa",
+            ).set(calculated)
 
     for device, port in (data.get("ports") or {}).items():
         power = port.get("current_power")

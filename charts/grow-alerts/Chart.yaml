@@ -1,0 +1,12 @@
+apiVersion: v2
+name: grow-alerts
+description: Optional grow-room alerts the AC Infinity app cannot see. Every alert is off until its Helm toggle is true, and a false toggle renders no object.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - grow-room
+  - alerts
+  - prometheus
+maintainers:
+  - name: Cole Miller

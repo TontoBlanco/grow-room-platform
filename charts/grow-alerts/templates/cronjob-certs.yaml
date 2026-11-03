@@ -1,0 +1,61 @@
+{{- if .Values.alerts.certExpiry.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: grow-cert-expiry
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grow-alerts.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.alerts.certExpiry.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          restartPolicy: Never
+          {{- include "grow-alerts.jobPodSecurity" . | nindent 10 }}
+          containers:
+            - name: certs
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  {{ include "grow-alerts.decode" . }}
+                  exec python /tmp/grow_alerts.py certs \
+                    --namespace {{ .Release.Namespace | quote }} \
+                    --alertmanager-url {{ include "grow-alerts.alertmanagerURL" . | quote }} \
+                  {{- range .Values.alerts.certExpiry.certs }}
+                    --cert {{ printf "%s=%s" .name .notAfter | quote }} \
+                  {{- if .path }}
+                    --cert-path {{ printf "%s=%s" .name .path | quote }} \
+                  {{- end }}
+                  {{- end }}
+                    --within-days {{ .Values.alerts.certExpiry.withinDays | quote }}
+              {{- include "grow-alerts.containerSecurity" . | nindent 14 }}
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+          volumes:
+            - name: script
+              configMap:
+                name: grow-alerts-script
+            - name: tmp
+              emptyDir: {}
+{{- end }}
