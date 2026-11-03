@@ -14,6 +14,10 @@ podDisruptionBudget:
   enabled: true
   minAvailable: 2
 
+# Tent-wide stage for the aws-poc Argo app. veg is 0.8-1.2 kPa leaf VPD.
+env:
+  GROW_STAGE: veg
+
 audit:
   databaseUrlSecret: audit-db
 

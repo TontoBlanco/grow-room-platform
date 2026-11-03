@@ -159,6 +159,12 @@ dry extreme — and the scrape exports `grow_room_plant_mood` so the Grow-room
 VPD dashboard can show the mood without calling the JSON endpoint. The bands
 are a soft mixed-tent heuristic, not agronomy advice and not a control signal.
 
+`GROW_STAGE` is separate from that mood heuristic. It picks one tent-wide
+stage (seedling/clone, veg, flower, or late flower; default veg) and the
+leaf-VPD target that goes with it. sensor-service exports the stage and the
+band on `/metrics` and `/stage`. The Grow-room VPD dashboard draws the band
+from those gauges. How to change it is in the README.
+
 ## Why the monitoring stack scrapes the Docker host
 
 This was one of the more useful design problems in the project.

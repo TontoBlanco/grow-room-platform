@@ -14,6 +14,8 @@ service:
 env:
   SENSOR_SOURCE: simulator
   LEAF_TEMP_OFFSET_C: "-2.0"
+  # seedling, veg, flower, or late_flower. clone is an alias for seedling.
+  GROW_STAGE: veg
 
 autoscaling:
   enabled: false

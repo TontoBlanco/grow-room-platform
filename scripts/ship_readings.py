@@ -16,14 +16,17 @@ import urllib.request
 import uuid
 from datetime import UTC, datetime
 
-import boto3
-
 
 def flatten(r: dict) -> dict:
-    """Keep the fields the Glue table knows about; nested dicts become prefixed columns."""
+    """Keep the fields the Glue table knows about; nested dicts become prefixed columns.
+
+    ``stage`` is optional. It is added only when ``/readings`` sent a growth
+    stage, so a replay of an older payload keeps the previous keys. Athena
+    returns null for objects that omit it.
+    """
     probe = r.get("probe") or {}
     controller = r.get("controller") or {}
-    return {
+    row = {
         "timestamp": r.get("timestamp"),
         "temperature_c": r.get("temperature_c"),
         "humidity_percent": r.get("humidity_percent"),
@@ -35,6 +38,10 @@ def flatten(r: dict) -> dict:
         "source": r.get("source"),
         "host": socket.gethostname(),
     }
+    stage = r.get("growth_stage")
+    if isinstance(stage, str) and stage.strip():
+        row["stage"] = stage.strip()
+    return row
 
 
 def fetch(url: str) -> dict:
@@ -53,6 +60,8 @@ def upload(s3, bucket: str, prefix: str, rows: list[dict]) -> str:
 
 
 def main() -> None:
+    import boto3
+
     p = argparse.ArgumentParser()
     p.add_argument("--url", default="http://localhost:8000/readings")
     p.add_argument("--bucket", required=True)

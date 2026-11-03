@@ -6,6 +6,7 @@ from sensor_service.main import create_app
 from sensor_service.models import DeviceReading, ProbeReading, Reading
 from sensor_service.mood import BANDS, HEURISTIC_NOTE
 from sensor_service.sources import SimulatorSource
+from sensor_service.stage import load_growth_stage
 
 
 class BrokenSource:
@@ -13,8 +14,16 @@ class BrokenSource:
         raise RuntimeError("controller offline")
 
 
-def client(source=None):
-    return TestClient(create_app(source or SimulatorSource(seed=1), leaf_offset=0.0))
+def client(source=None, growth_stage=None):
+    # Empty env keeps the suite on the veg default even if the shell has GROW_STAGE.
+    stage = load_growth_stage({}) if growth_stage is None else growth_stage
+    return TestClient(
+        create_app(
+            source or SimulatorSource(seed=1),
+            leaf_offset=0.0,
+            growth_stage=stage,
+        )
+    )
 
 
 def test_healthz():
@@ -48,9 +57,78 @@ def test_readings_503_when_source_fails():
 
 
 def test_metrics_still_served_when_source_fails():
-    resp = client(BrokenSource()).get("/metrics")
+    stage = load_growth_stage({"GROW_STAGE": "late_flower"})
+    resp = client(BrokenSource(), growth_stage=stage).get("/metrics")
     assert resp.status_code == 200
     assert "grow_read_errors" in resp.text
+    assert "grow_room_stage_info{" in resp.text
+    assert 'stage="late_flower"' in resp.text
+    assert "grow_vpd_target_low_kpa" in resp.text
+    assert "grow_vpd_target_high_kpa" in resp.text
+
+
+def test_stage_endpoint_and_readings_follow_the_band():
+    veg = client(StaticSource(Reading(temperature_c=25.0, humidity_percent=60.0)))
+    stage = veg.get("/stage")
+    assert stage.status_code == 200
+    body = stage.json()
+    assert body["growth_stage"] == "veg"
+    assert body["display"] == "veg"
+    assert body["vpd_target_low_kpa"] == 0.8
+    assert body["vpd_target_high_kpa"] == 1.2
+    assert "Pulse Grow" in body["note"]
+
+    reading = veg.get("/readings").json()
+    assert reading["growth_stage"] == "veg"
+    assert reading["vpd_target_low_kpa"] == 0.8
+    assert reading["vpd_target_high_kpa"] == 1.2
+    # 25 C at 60% RH is about 1.27 kPa, outside the veg band.
+    assert reading["vpd_in_target_band"] is False
+
+    # 25 C at 60% RH is about 1.27 kPa, inside the flower band.
+    flower = load_growth_stage({"GROW_STAGE": "flower"})
+    http = client(StaticSource(Reading(temperature_c=25.0, humidity_percent=60.0)), flower)
+    data = http.get("/readings").json()
+    assert data["growth_stage"] == "flower"
+    assert data["vpd_target_low_kpa"] == 1.2
+    assert data["vpd_target_high_kpa"] == 1.5
+    assert data["vpd_in_target_band"] is True
+    assert http.get("/stage").json()["display"] == "flower"
+
+    metrics = http.get("/metrics").text
+    assert 'stage="flower"' in metrics
+    assert 'display="flower"' in metrics
+    assert "grow_vpd_in_target_band 1.0" in metrics
+
+
+def test_stage_endpoint_does_not_need_a_sensor():
+    resp = client(BrokenSource()).get("/stage")
+    assert resp.status_code == 200
+    assert resp.json()["growth_stage"] == "veg"
+
+
+def test_create_app_reads_grow_stage_from_the_environment(monkeypatch):
+    monkeypatch.setenv("GROW_STAGE", "clone")
+    for key in (
+        "VPD_TARGET_LOW_KPA",
+        "VPD_TARGET_HIGH_KPA",
+        "VPD_BAND_SEEDLING",
+        "VPD_BAND_VEG",
+        "VPD_BAND_FLOWER",
+        "VPD_BAND_LATE_FLOWER",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    http = TestClient(create_app(SimulatorSource(seed=1), leaf_offset=0.0))
+    body = http.get("/stage").json()
+    assert body["growth_stage"] == "seedling"
+    assert body["display"] == "seedling/clone"
+    assert body["vpd_target_low_kpa"] == 0.4
+    assert body["vpd_target_high_kpa"] == 0.8
+    metrics = http.get("/metrics").text
+    assert 'stage="seedling"' in metrics
+    assert 'display="seedling/clone"' in metrics
+    assert "grow_vpd_target_low_kpa 0.4" in metrics
+    assert "grow_vpd_target_high_kpa 0.8" in metrics
 
 
 def _mood_samples(body: str) -> dict[str, float]:
