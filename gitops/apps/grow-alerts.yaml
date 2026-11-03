@@ -1,5 +1,6 @@
-# Optional alerts. Defaults render an empty release: every toggle is false.
-# Argo still tracks the chart so flipping a value in git is the on switch.
+# Grow alerts on k3d. values.yaml keeps every alert off so a render of the
+# chart defaults is empty. values-k3d.yaml is the lab overlay, the same role
+# monitoring/values-k3d.yaml plays for the monitoring app.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -13,6 +14,10 @@ spec:
     repoURL: https://github.com/TontoBlanco/grow-room-platform.git
     targetRevision: HEAD
     path: charts/grow-alerts
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-k3d.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

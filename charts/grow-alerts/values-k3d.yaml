@@ -1,0 +1,16 @@
+# k3d overlay for gitops/apps/grow-alerts.yaml.
+# charts/grow-alerts/values.yaml stays all-off. CI renders that file alone and
+# expects an empty release. Turn a lab alert on here, not in the defaults.
+alerts:
+  staleShipper:
+    enabled: false
+  probeDrift:
+    enabled: true
+  vpdOutOfBand:
+    enabled: false
+  certExpiry:
+    enabled: false
+
+delivery:
+  email:
+    enabled: false

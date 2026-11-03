@@ -1,5 +1,7 @@
-# Every alert is off. A false toggle renders no object for that alert.
-# Turn one on by setting its enabled flag to true. See docs/GROW_ALERTS.md.
+# Chart defaults. Every alert is off. A false toggle renders no object.
+# CI renders this file alone and requires an empty release.
+# The k3d lab overlay is values-k3d.yaml, loaded by gitops/apps/grow-alerts.yaml.
+# Turn a lab alert on in that file. See docs/GROW_ALERTS.md.
 alerts:
   staleShipper:
     enabled: false

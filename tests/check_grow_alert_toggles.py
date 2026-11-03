@@ -32,8 +32,10 @@ def helm_bin() -> str:
     return os.environ.get("HELM", "helm")
 
 
-def template(sets: list[str]) -> subprocess.CompletedProcess[str]:
+def template(sets: list[str], files: list[str] | None = None) -> subprocess.CompletedProcess[str]:
     command = [helm_bin(), "template", "grow-alerts", str(CHART), "-n", "monitoring"]
+    for path in files or []:
+        command.extend(["-f", path])
     for item in sets:
         command.extend(["--set", item])
     return subprocess.run(command, capture_output=True, text=True, check=False)  # noqa: S603
@@ -50,8 +52,12 @@ def documents(text: str) -> list[tuple[str, str]]:
     return found
 
 
-def assert_render(sets: list[str], expected: list[tuple[str, str]]) -> str:
-    result = template(sets)
+def assert_render(
+    sets: list[str],
+    expected: list[tuple[str, str]],
+    files: list[str] | None = None,
+) -> str:
+    result = template(sets, files)
     if result.returncode != 0:
         raise SystemExit(result.stderr)
     found = documents(result.stdout)
@@ -68,7 +74,26 @@ def check() -> None:
         print("helm not installed; skip grow-alert toggle render")
         return
 
+    defaults = (CHART / "values.yaml").read_text(encoding="utf-8")
+    if "enabled: true" in defaults:
+        raise SystemExit("charts/grow-alerts/values.yaml must keep every alert off")
     assert_render([], [])
+
+    k3d_files = [str(CHART / "values.yaml"), str(CHART / "values-k3d.yaml")]
+    k3d = assert_render([], [("PrometheusRule", "grow-probe-drift")], files=k3d_files)
+    for absent in (
+        "GrowShipperStale",
+        "GrowVpdOutOfBand",
+        "GrowCertExpiring",
+        "emailConfigs",
+        "CronJob",
+        "kind: Deployment",
+        "kind: ConfigMap",
+    ):
+        if absent in k3d:
+            raise SystemExit(f"k3d overlay render included {absent}")
+    if "alert: GrowProbeDrift" not in k3d:
+        raise SystemExit("k3d overlay did not render GrowProbeDrift")
 
     probe = assert_render(
         ["alerts.probeDrift.enabled=true"],
