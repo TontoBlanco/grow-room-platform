@@ -75,3 +75,5 @@ Plan does not create the cluster. A plan against an empty state still needs the 
 The first plan failed with `sts:AssumeRoleWithWebIdentity` even though the trust policy looked right. This repository sets an immutable OIDC subject, so the token does not match a subject written with only the repository name. The bootstrap trust lists both forms. `terraform plan` on bootstrap does not change AWS. I had to apply it.
 
 The second lesson was the apply trigger. A merge that applies by itself is a surprise bill. Apply is a button, and the environment pauses for a person.
+
+The third was the EKS access entry. It needs the full SSO role ARN, path included. The shape is `arn:aws:iam::ACCOUNT:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_SUFFIX`. The real account and suffix stay in `admin_principal_arn`. Without that path, `kubectl` asks for credentials. Pull request [#54](https://github.com/TontoBlanco/grow-room-platform/pull/54) is where the OIDC workflows landed.

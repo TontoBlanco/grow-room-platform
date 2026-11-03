@@ -86,4 +86,8 @@ While `up` is in progress you are paying. `down` prints what it keeps: state buc
 
 Two appliers can still disagree if they are not running at the same moment. The state lock stops a collision. It does not stop my laptop and GitHub Actions from taking turns and flipping `my_ip_cidr`. For one session I pick one writer: the script, or CI with `-SkipTerraform`.
 
-The other lesson is the email subscription. Terraform creates it only when `alert_email` is set, and AWS still waits for the inbox click. Until that click, alerts are dropped. `up` now says so when the subscription is `PendingConfirmation`, and it does not subscribe a second time.
+The email subscription was missing after the first `up`, because `alert_email` was empty. The topic existed and nothing was subscribed, so alerts were dropped. `up` now reads `$env:ALERT_EMAIL`, then `terraform.tfvars`, then the GitHub variable `ALERT_EMAIL`. AWS still waits for the inbox click. Until that click, alerts are dropped. A second `up` does not subscribe again when the status is already `PendingConfirmation`.
+
+`down` once sat for minutes on a private subnet. The blocker was an available network interface in the proof-of-concept VPC, the kind named `aws-K8S-...`. The script now deletes available interfaces in that VPC before destroy and again while destroy runs. It does not touch an interface that is still in use.
+
+After destroy, the resource tagging API can still list things that are already gone. I check the service itself before I call a name a leftover. The script and this phase came in with pull request [#56](https://github.com/TontoBlanco/grow-room-platform/pull/56). The interface cleanup is in pull request [#75](https://github.com/TontoBlanco/grow-room-platform/pull/75).

@@ -61,7 +61,7 @@ I built the local project in five weeks, then a one-day AWS stack, then seven nu
 
 A service level objective is a target I chose, such as "99 percent of scrapes succeed." It is not a contract with a customer.
 
-As of 3 November 2026, phases 3 through 7 are done. The paid test session that day passed, and teardown was clean. The telemetry stack stays up at about 1 USD per month. `GROW_STAGE` landed the same day in pull request [#77](https://github.com/TontoBlanco/grow-room-platform/pull/77). What is still ahead is the [roadmap](project-management/roadmap.md).
+When something fails in a way I have already seen, start with [Troubleshooting](troubleshooting.md). As of 3 November 2026, phases 3 through 7 are done. The paid test session that day passed, and teardown was clean. The telemetry stack stays up at about 1 USD per month. `GROW_STAGE` landed the same day in pull request [#77](https://github.com/TontoBlanco/grow-room-platform/pull/77). What is still ahead is the [roadmap](project-management/roadmap.md).
 
 ## What this is not
 

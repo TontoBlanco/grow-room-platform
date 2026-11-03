@@ -27,7 +27,7 @@ spec:
             description: >-
               Prometheus has failed to scrape job=sensor-service for more than
               2 minutes. Check the Pod, Service, and ServiceMonitor.
-            runbook_url: "docs/WEEK4_OBSERVABILITY_GUIDE.md#runbook-sensor-scrape-down"
+            runbook_url: "docs/weekly-guides/WEEK4_OBSERVABILITY_GUIDE.md#runbook-sensor-scrape-down"
 
         - alert: GrowRoomHumidityOutOfRange
           expr: |

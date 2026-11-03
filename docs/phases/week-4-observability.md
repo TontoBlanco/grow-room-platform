@@ -77,3 +77,5 @@ This week is local. No AWS resources. The 24 hour retention is a disk choice on 
 Two healthy scrapes can still make a bad dashboard. The first live panels mixed the simulator with the tent, and every old pod left a DOWN tile. The fix was labels plus `max by`, and a test so the queries do not drift.
 
 The other lesson was the laptop lid. I spent time looking for a scrape bug that was just sleep. I wrote that down next to the dashboard so I would not chase it again.
+
+Docker Desktop has to be running before Compose. If it is not, Home Assistant opens on the first-run screen and sensor-service gets HTTP 401. That 401 is the onboarding page, not a bad scrape query. Start the engine, then start Compose again. More cases are on the [troubleshooting page](../troubleshooting.md).

@@ -12,7 +12,7 @@ Each event stores `prev_hash` and a SHA-256 `event_hash`. The hash covers the se
 
 The default file is SQLite. On the laptop that is `./data/audit.db`. In the container it is `/tmp/audit.db`, because uid 10001 cannot create `./data`. In k3d that file is on an `emptyDir` and disappears when the pod is replaced. `charts/snippets/audit-sqlite-pvc.yaml` is an example. It is not wired into the chart.
 
-[PR #38](https://github.com/TontoBlanco/grow-room-platform/pull/38) added Postgres behind the same API. Set `AUDIT_DATABASE_URL`, or a `postgres://` `DATABASE_URL`. `AUDIT_DATABASE_URL` wins. The image already includes the driver. CI runs the Postgres tests against a `postgres:16-alpine` service. See [ADR-0007](../adr/0007-sqlite-and-postgres.md).
+The portfolio write-up went out in [PR #36](https://github.com/TontoBlanco/grow-room-platform/pull/36). [PR #38](https://github.com/TontoBlanco/grow-room-platform/pull/38) added Postgres behind the same API. Set `AUDIT_DATABASE_URL`, or a `postgres://` `DATABASE_URL`. `AUDIT_DATABASE_URL` wins. The image already includes the driver. CI runs the Postgres tests against a `postgres:16-alpine` service. See [ADR-0007](../adr/0007-sqlite-and-postgres.md).
 
 ## Why
 

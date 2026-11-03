@@ -66,6 +66,20 @@ nav:
       - IAM and secrets: security/iam-and-secrets.md
       - Controls: security/controls.md
   - Test session, 3 November 2026: test-session/2026-11-03.md
+  - Troubleshooting: troubleshooting.md
+  - Weekly guides:
+      - Index: weekly-guides/index.md
+      - Week 1 CI guide: weekly-guides/WEEK1_CI_GUIDE.md
+      - Week 2 CI note: weekly-guides/WEEK2_CI_NOTE.md
+      - Week 2 Terraform guide: weekly-guides/WEEK2_TERRAFORM_GUIDE.md
+      - Week 3 CI note: weekly-guides/WEEK3_CI_NOTE.md
+      - Week 3 GitOps guide: weekly-guides/WEEK3_GITOPS_GUIDE.md
+      - Week 4 CI note: weekly-guides/WEEK4_CI_NOTE.md
+      - Week 4 observability guide: weekly-guides/WEEK4_OBSERVABILITY_GUIDE.md
+      - Week 5 CI note: weekly-guides/WEEK5_CI_NOTE.md
+      - Week 5 audit guide: weekly-guides/WEEK5_AUDIT_LOG_GUIDE.md
+      - Week 5 compliance notes: weekly-guides/WEEK5_COMPLIANCE_NOTES.md
+      - Week 5 write-up outline: weekly-guides/WEEK5_WRITEUP_OUTLINE.md
   - Decision records:
       - Template: adr/0000-template.md
       - ADR-0001 NAT gateway per AZ: adr/0001-nat-gateway-per-az.md
@@ -81,17 +95,6 @@ nav:
       - ADR-0011 k3d instead of a Pi: adr/0011-k3d-instead-of-a-pi.md
   - Build notes:
       - Capstone write-up: CAPSTONE.md
-      - Week 1 CI guide: WEEK1_CI_GUIDE.md
-      - Week 2 CI note: WEEK2_CI_NOTE.md
-      - Week 2 Terraform guide: WEEK2_TERRAFORM_GUIDE.md
-      - Week 3 CI note: WEEK3_CI_NOTE.md
-      - Week 3 GitOps guide: WEEK3_GITOPS_GUIDE.md
-      - Week 4 CI note: WEEK4_CI_NOTE.md
-      - Week 4 observability guide: WEEK4_OBSERVABILITY_GUIDE.md
-      - Week 5 CI note: WEEK5_CI_NOTE.md
-      - Week 5 audit guide: WEEK5_AUDIT_LOG_GUIDE.md
-      - Week 5 compliance notes: WEEK5_COMPLIANCE_NOTES.md
-      - Week 5 write-up outline: WEEK5_WRITEUP_OUTLINE.md
       - Audit router patch note: main_patch.md
       - AWS proof-of-concept gallery: aws-poc/README.md
       - AWS cost record: aws-poc/COSTS.md

@@ -15,7 +15,7 @@ By the end of the week you have:
 4. **PrometheusRules** for humidity out of range, scrape down, and pod restarts.
 5. **Two SLOs** (ingest availability, data freshness) + one runbook.
 6. This week's cluster is still the $0 k3d lab from Week 3. The later AWS
-   sessions are a different root. See the [documentation site](index.md).
+   sessions are a different root. See the [documentation site](../index.md).
 
 You already know Deployments, Services, and Argo sync. This week adds the
 monitoring *control plane* that watches those objects. The sensor chart already
@@ -42,8 +42,8 @@ cp -r path/to/grow-room-platform-week4/monitoring ./
 cp path/to/grow-room-platform-week4/gitops/apps/monitoring.yaml ./gitops/apps/
 # Merge monitoring.yaml into gitops/apps/kustomization.yaml resources:
 #   - monitoring.yaml
-cp path/to/grow-room-platform-week4/docs/WEEK4_OBSERVABILITY_GUIDE.md ./docs/
-cp path/to/grow-room-platform-week4/docs/WEEK4_CI_NOTE.md ./docs/
+cp path/to/grow-room-platform-week4/docs/weekly-guides/WEEK4_OBSERVABILITY_GUIDE.md ./docs/weekly-guides/
+cp path/to/grow-room-platform-week4/docs/weekly-guides/WEEK4_CI_NOTE.md ./docs/weekly-guides/
 # Optionally paste README_WEEK4_SNIPPET.md into README.md roadmap
 ```
 
@@ -591,7 +591,7 @@ write two honest SLOs for one service.
 The table below is the Week 4 lab. It is not the project as of 3 November
 2026. The proof of concept is applied for a session and then destroyed.
 Telemetry stays up at about 1 USD per month. See
-[Phase 2](phases/phase-2-up-verify-down.md).
+[Phase 2](../phases/phase-2-up-verify-down.md).
 
 | Path | Cost |
 |------|------|

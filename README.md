@@ -442,8 +442,8 @@ demoed it, and destroyed it. See
 [docs/aws-poc/README.md](docs/aws-poc/README.md).
 
 The Week 2 and Week 3 guides describe the local lab, not the proof of concept:
-[Terraform guide](docs/WEEK2_TERRAFORM_GUIDE.md) and
-[GitOps guide](docs/WEEK3_GITOPS_GUIDE.md).
+[Terraform guide](docs/weekly-guides/WEEK2_TERRAFORM_GUIDE.md) and
+[GitOps guide](docs/weekly-guides/WEEK3_GITOPS_GUIDE.md).
 
 ## Monitoring
 
@@ -494,7 +494,7 @@ There are also alerts for sensor scrape failures (2 minutes), humidity outside
 30–80% (5 minutes), and more than two sensor container restarts in 15 minutes.
 The humidity rule applies to any matching series, including live and
 simulated readings. See [monitoring/docs-slo.md](monitoring/docs-slo.md) and
-the [observability guide](docs/WEEK4_OBSERVABILITY_GUIDE.md).
+the [observability guide](docs/weekly-guides/WEEK4_OBSERVABILITY_GUIDE.md).
 
 ## Audit log
 
@@ -550,8 +550,8 @@ or METRC connectivity. The hash chain detects a rewritten row. Someone who can
 write the database can still rewrite a row and recompute the chain. The
 `actor` field is recorded, not authenticated.
 
-See the [audit guide](docs/WEEK5_AUDIT_LOG_GUIDE.md) and
-[compliance notes](docs/WEEK5_COMPLIANCE_NOTES.md).
+See the [audit guide](docs/weekly-guides/WEEK5_AUDIT_LOG_GUIDE.md) and
+[compliance notes](docs/weekly-guides/WEEK5_COMPLIANCE_NOTES.md).
 
 ## Security and scope
 

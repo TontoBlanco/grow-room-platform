@@ -71,4 +71,4 @@ GHCR for this public repository, and the public Rekor and Fulcio services, are n
 
 ## What I learned
 
-CI said the image was signed. Kyverno on 3 November said `no signatures found`. Both were telling the truth about different lookups. Cosign 3 wrote an OCI referrer. Kyverno 1.19 looked up the legacy tag `sha256-<digest>.sig`. Pinning cosign `v2.6.5` and `--registry-referrers-mode=legacy` publishes the tag Kyverno reads. I am not calling the policy enforced. Audit is the mode in Git today.
+CI said the image was signed. Kyverno on 3 November said `no signatures found`. Both were telling the truth about different lookups. Cosign 3 wrote an OCI referrer. Kyverno 1.19 looked up the legacy tag `sha256-<digest>.sig`. Pinning cosign `v2.6.5` and `--registry-referrers-mode=legacy` publishes the tag Kyverno reads. I am not calling the policy enforced. Audit is the mode in Git today. In that mode `mutateDigest` has to be `false`, and Kyverno 1.19 only sees the legacy `.sig` tag. Both are written up again on the [troubleshooting page](../troubleshooting.md).

@@ -19,7 +19,7 @@ By the end of the week you have:
 6. This week's audit store is still local: SQLite by default, optional
    Postgres via Compose. No `terraform apply` in this week. Session RDS
    came later and is destroyed with the proof of concept. See the
-   [documentation site](index.md).
+   [documentation site](../index.md).
 
 You already know Deployments, Services, Argo sync, and Prometheus scrapes.
 This week adds an **immutable evidence trail** next to the mutable live objects
@@ -45,7 +45,7 @@ cp path/to/grow-room-platform-week5/tests/test_audit.py ./tests/
 mkdir -p data docs
 cp path/to/grow-room-platform-week5/data/.gitignore ./data/
 cp path/to/grow-room-platform-week5/data/.gitkeep ./data/ 2>/dev/null || touch ./data/.gitkeep
-cp path/to/grow-room-platform-week5/docs/WEEK5_*.md ./docs/
+cp path/to/grow-room-platform-week5/docs/weekly-guides/WEEK5_*.md ./docs/weekly-guides/
 cp path/to/grow-room-platform-week5/docs/main_patch.md ./docs/
 # Optional PVC snippet (only if you want DB to survive Pod restarts on k3d):
 mkdir -p charts/snippets
@@ -296,10 +296,10 @@ OpenAPI: `/docs` → tag **audit**.
 
 Read and lightly customize:
 
-- `docs/WEEK5_COMPLIANCE_NOTES.md` — STIG-style chart/image checklist, Trivy/SBOM,
+- `docs/weekly-guides/WEEK5_COMPLIANCE_NOTES.md` — STIG-style chart/image checklist, Trivy/SBOM,
   least privilege on k3d.
-- `docs/WEEK5_WRITEUP_OUTLINE.md` — mermaid architecture + blog outline.
-- `docs/WEEK5_CI_NOTE.md` — optional pytest CI you author yourself.
+- `docs/weekly-guides/WEEK5_WRITEUP_OUTLINE.md` — mermaid architecture + blog outline.
+- `docs/weekly-guides/WEEK5_CI_NOTE.md` — optional pytest CI you author yourself.
 
 These are **talking points**, not a claim that your home tent is STIGed or
 ATO'd.

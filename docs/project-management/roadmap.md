@@ -1,6 +1,6 @@
 # Roadmap
 
-This is the order I will do the remaining work. Items above the line are not started in `main`, except the growth-stage pull request, which is open.
+This is the order of the remaining work. The growth-stage setting is already on `main`.
 
 ## 1. Plant stage and VPD bands
 
@@ -10,7 +10,9 @@ Done on `main`. Pull request [#77](https://github.com/TontoBlanco/grow-room-plat
 
 ## 2. Athena as a data source in local Grafana
 
-The query `analytics/athena/vpd_by_day.sql` runs in workgroup `grow-room-telemetry`. Grafana on k3d does not have that workgroup as a data source yet. I want a panel for daily VPD next to the 24 hour Prometheus charts, without sending the Grafana admin credential to AWS as a long-lived key. I have not chosen the credential shape. It should not be an access key in `monitoring/values-k3d.yaml`.
+In progress. Pull request [#80](https://github.com/TontoBlanco/grow-room-platform/pull/80) is open, on branch `cursor/grafana-athena-history-1d19`. Its title is "Add Athena history to local Grafana." The write-up in that pull request is `docs/ATHENA_GRAFANA.md`. I am not copying it here.
+
+The query `analytics/athena/vpd_by_day.sql` already runs in workgroup `grow-room-telemetry`. What is not on `main` yet is Grafana on k3d using that workgroup. The credential must not be an access key in `monitoring/values-k3d.yaml`.
 
 ## 3. Grow alerts the controller cannot see
 

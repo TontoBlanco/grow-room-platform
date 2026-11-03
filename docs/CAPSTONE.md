@@ -347,8 +347,8 @@ Passing `terraform validate` on `infra/` and applying `infra/aws-poc` for
 a session are different claims. I can show both without treating the local
 modules as a cloud deployment.
 
-[Terraform build notes](WEEK2_TERRAFORM_GUIDE.md) ·
-[GitOps build notes](WEEK3_GITOPS_GUIDE.md)
+[Terraform build notes](weekly-guides/WEEK2_TERRAFORM_GUIDE.md) ·
+[GitOps build notes](weekly-guides/WEEK3_GITOPS_GUIDE.md)
 
 ## SLOs, alerts, and what the metrics actually prove
 
@@ -452,8 +452,8 @@ This gave me a way to practice state validation, event ordering, and
 integrity checks, and to see where an audit trail still needs an external
 trust anchor before it is evidence.
 
-[Audit implementation notes](WEEK5_AUDIT_LOG_GUIDE.md) ·
-[Compliance scope and gaps](WEEK5_COMPLIANCE_NOTES.md)
+[Audit implementation notes](weekly-guides/WEEK5_AUDIT_LOG_GUIDE.md) ·
+[Compliance scope and gaps](weekly-guides/WEEK5_COMPLIANCE_NOTES.md)
 
 ## What I intentionally did not implement
 

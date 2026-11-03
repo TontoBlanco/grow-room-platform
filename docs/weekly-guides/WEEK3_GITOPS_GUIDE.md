@@ -17,7 +17,7 @@ You already operate Helm and Argo CD on the delivery side at work. This week is
 the portfolio evidence that you can also **own the path from GHCR image → GitOps
 values → running Pod** on a cluster you control. This week does not
 spend AWS money. Later sessions do. The current cost posture is on the
-[documentation site](index.md): the k3d lab stays free, a paid proof of
+[documentation site](../index.md): the k3d lab stays free, a paid proof of
 concept comes up and goes down, and telemetry stays at about 1 USD per month.
 
 Try each step before peeking at the sample CI bump workflow at the bottom.
@@ -33,8 +33,8 @@ From the unzipped week-3 pack:
 cp -r path/to/grow-room-platform-week3/charts ./
 cp -r path/to/grow-room-platform-week3/gitops ./
 cp -r path/to/grow-room-platform-week3/scripts ./
-cp path/to/grow-room-platform-week3/docs/WEEK3_GITOPS_GUIDE.md ./docs/
-cp path/to/grow-room-platform-week3/docs/WEEK3_CI_NOTE.md ./docs/
+cp path/to/grow-room-platform-week3/docs/weekly-guides/WEEK3_GITOPS_GUIDE.md ./docs/weekly-guides/
+cp path/to/grow-room-platform-week3/docs/weekly-guides/WEEK3_CI_NOTE.md ./docs/weekly-guides/
 # Optionally paste README_WEEK3_SNIPPET.md into README.md roadmap
 ```
 
@@ -352,8 +352,8 @@ CI/CD.
 This week is the laptop. It is not a claim that the whole project is
 local-only. As of 3 November 2026 I also apply `infra/aws-poc` for a
 session and keep `infra/telemetry` up at about 1 USD per month. Those
-steps are [Phase 2](phases/phase-2-up-verify-down.md) and
-[Phase 3](phases/phase-3-telemetry.md). Do not start them from this guide.
+steps are [Phase 2](../phases/phase-2-up-verify-down.md) and
+[Phase 3](../phases/phase-3-telemetry.md). Do not start them from this guide.
 
 | Path | Cost |
 |------|------|
@@ -457,7 +457,7 @@ project until you actually do those things.
 ## Reference: SAMPLE only — CI bump of `image.tag`
 
 **Do not** copy this blindly into production. Write your own workflow when you
-are ready (see `docs/WEEK3_CI_NOTE.md`). This sample shows the *shape* of the
+are ready (see `docs/weekly-guides/WEEK3_CI_NOTE.md`). This sample shows the *shape* of the
 hand-off: after a successful image push, open a PR or commit that updates the
 tag Argo deploys.
 

@@ -16,4 +16,4 @@ Optional CI polish (you author it yourself when the stack feels boring):
 Until then: merge monitoring manifests by PR, let Argo sync, verify targets by
 hand. That is a valid Week 4 done state.
 
-See `docs/WEEK4_OBSERVABILITY_GUIDE.md` for the teaching path.
+See `docs/weekly-guides/WEEK4_OBSERVABILITY_GUIDE.md` for the teaching path.

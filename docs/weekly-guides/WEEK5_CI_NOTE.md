@@ -24,4 +24,4 @@ It is not RDS.
 Locally, `pytest` is enough without Postgres. Verify `/audit/integrity` by
 hand when you want to see the chain.
 
-See `docs/WEEK5_AUDIT_LOG_GUIDE.md` for the teaching path.
+See `docs/weekly-guides/WEEK5_AUDIT_LOG_GUIDE.md` for the teaching path.

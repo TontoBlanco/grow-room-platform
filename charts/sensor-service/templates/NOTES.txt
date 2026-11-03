@@ -12,4 +12,4 @@ Check health:
 Prometheus scrape path: /metrics (annotated on the Pod).
 
 If ImagePullBackOff on GHCR: make the package public, or set imagePullSecrets
-and create a dockerconfigjson Secret (see docs/WEEK3_GITOPS_GUIDE.md).
+and create a dockerconfigjson Secret (see docs/weekly-guides/WEEK3_GITOPS_GUIDE.md).

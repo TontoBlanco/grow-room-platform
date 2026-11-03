@@ -1,7 +1,7 @@
 # Week 5 write-up outline (architecture + blog)
 
 The drafted portfolio page is the repo [README](https://github.com/TontoBlanco/grow-room-platform/blob/main/README.md). The long
-architecture write-up, ready to edit into a post, is [CAPSTONE.md](CAPSTONE.md).
+architecture write-up, ready to edit into a post, is [CAPSTONE.md](../CAPSTONE.md).
 Living diagram (Atlas owns the page):
 [Grow-room Platform Map](https://cursor.com/canvas/store-6a197a3b-901d-4b50-9079-9a539befde02/debaff3b-9e35-48ab-bab0-59761b62fb09).
 
@@ -96,7 +96,7 @@ practicing compliance evidence patterns; it is not a licensed METRC client.
 - Grafana VPD screenshot (Week 4).
 - `/docs` OpenAPI screenshot showing the `audit` tag.
 - Mermaid diagram rendered.
-- Link to `docs/WEEK5_AUDIT_LOG_GUIDE.md` in the repo after you push.
+- Link to `docs/weekly-guides/WEEK5_AUDIT_LOG_GUIDE.md` in the repo after you push.
 
 **Publish checklist**
 

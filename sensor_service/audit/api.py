@@ -5,7 +5,7 @@ Mount with:
     from sensor_service.audit import create_audit_router
     app.include_router(create_audit_router())
 
-See docs/WEEK5_AUDIT_LOG_GUIDE.md and docs/main_patch.md.
+See docs/weekly-guides/WEEK5_AUDIT_LOG_GUIDE.md and docs/main_patch.md.
 """
 
 from __future__ import annotations

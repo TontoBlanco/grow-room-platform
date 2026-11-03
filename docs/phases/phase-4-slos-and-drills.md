@@ -47,7 +47,7 @@ Set-Location C:\src\grow-room-platform
 
 Confirm the inbox once. A second `up` must not send another confirmation if the subscription is already confirmed.
 
-The four drills, with the curl loop, are in `docs/aws-poc/DRILLS.md`. Run them from `C:\src\grow-room-platform` while `verify` is green. Restore Argo CD auto-sync after drill 4 before you destroy.
+The four drills, with the curl loop, are in [the drill notes](../aws-poc/DRILLS.md). That file wins over any older note that tells you to wait for `SensorAvailabilityBudgetBurnFast` in 5 to 8 minutes. Drill 4's email is `SensorDataStale`. Run the drills from `C:\src\grow-room-platform` while `verify` is green. Restore Argo CD auto-sync after drill 4 before you destroy.
 
 ```powershell
 .\scripts\aws-poc.ps1 down
@@ -62,3 +62,5 @@ SNS email at this volume sits in the free tier. The cost of this phase is the st
 I expected the fast burn email about 5 to 8 minutes after scaling to zero. `SensorDataStale` fired first, around 7 minutes: freshness crosses 120 seconds, then the rule waits 5 minutes, then Alertmanager waits 30 seconds. The fast burn needs the one hour window as well, so it is closer to 11 minutes, and it may not fire at all if Prometheus drops the target instead of storing `up=0`. I wrote that into the drill notes so the next session does not fail a drill that behaved correctly.
 
 The other surprise was `TargetDown` for `grow-room-ha-host`. EKS cannot route `host.k3d.internal`. An empty `additionalScrapeConfigs` list in the EKS values file drops that job. The k3d file still has it.
+
+Drills 1 and 2 each returned one HTTP 502. The load balancer was still sending requests after the process had exited. The EKS chart now waits in `preStop` for 30 seconds, allows 45 seconds to terminate, shortens deregistration to 20 seconds, and keeps two pods available. The RDS failover in drill 3 took about 30 seconds. I still tell people the usual window is 60 to 120 seconds, and I report the time I measured. The cleanup is pull request [#75](https://github.com/TontoBlanco/grow-room-platform/pull/75). The same list is on the [troubleshooting page](../troubleshooting.md).
