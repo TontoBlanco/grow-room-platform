@@ -47,7 +47,7 @@ grafana:
   # Roles Anywhere cert (secret grafana-athena-identity, not in git). Without
   # that secret the sidecar sleeps and this pod still starts. Docs: docs/ATHENA_GRAFANA.md
   plugins:
-    - grafana-athena-datasource 3.4.2
+    - grafana-athena-datasource@3.4.2
   env:
     AWS_REGION: us-west-2
     AWS_DEFAULT_REGION: us-west-2
