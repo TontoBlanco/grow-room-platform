@@ -1,4 +1,4 @@
-"""FastAPI app: /healthz, /readings, /mood, /metrics."""
+"""FastAPI app: /healthz, /readings, /mood, /stage, /metrics."""
 
 from fastapi import FastAPI, HTTPException, Response
 from prometheus_client import (
@@ -6,6 +6,7 @@ from prometheus_client import (
     CollectorRegistry,
     Counter,
     Gauge,
+    Info,
     generate_latest,
 )
 
@@ -13,6 +14,7 @@ from sensor_service import __version__
 from sensor_service.config import build_source, leaf_offset_c
 from sensor_service.mood import BANDS, mood_for_vpd
 from sensor_service.sources import Source
+from sensor_service.stage import GrowthStage, load_growth_stage
 
 # Own registry so tests can build multiple apps without duplicate-metric errors.
 registry = CollectorRegistry()
@@ -32,6 +34,29 @@ PLANT_MOOD = Gauge(
 )
 CO2 = Gauge("grow_co2_ppm", "CO2 concentration", registry=registry)
 READ_ERRORS = Counter("grow_read_errors", "Failed sensor reads", registry=registry)
+# Info metric: the sample is always 1. `stage` is GROW_STAGE (clone is stored
+# as seedling). `display` is the grower-facing name. Targets are separate gauges
+# so Grafana can draw the band without hard-coded thresholds.
+GROW_ROOM_STAGE = Info(
+    "grow_room_stage",
+    "Configured plant growth stage for the leaf VPD target band",
+    registry=registry,
+)
+VPD_TARGET_LOW = Gauge(
+    "grow_vpd_target_low_kpa",
+    "Lower edge of the growth-stage leaf VPD target band, kPa, inclusive",
+    registry=registry,
+)
+VPD_TARGET_HIGH = Gauge(
+    "grow_vpd_target_high_kpa",
+    "Upper edge of the growth-stage leaf VPD target band, kPa, inclusive",
+    registry=registry,
+)
+VPD_IN_BAND = Gauge(
+    "grow_vpd_in_target_band",
+    "1 when computed leaf VPD is inside the inclusive growth-stage target band, else 0",
+    registry=registry,
+)
 
 # Created on first real sample so the simulator does not export a misleading 0.
 _OPTIONAL_GAUGES: dict[str, Gauge] = {}
@@ -47,6 +72,23 @@ def _optional_gauge(name: str, documentation: str, *labelnames: str) -> Gauge:
 
 def _set_labeled(name: str, documentation: str, label: str, value: float) -> None:
     _optional_gauge(name, documentation, "device").labels(device=label).set(value)
+
+
+def _publish_stage(stage: GrowthStage, vpd_kpa: float | None = None) -> None:
+    """Refresh stage and target gauges. In-band waits for a real VPD sample."""
+    GROW_ROOM_STAGE.info({"stage": stage.name, "display": stage.display})
+    VPD_TARGET_LOW.set(stage.low_kpa)
+    VPD_TARGET_HIGH.set(stage.high_kpa)
+    if vpd_kpa is not None:
+        VPD_IN_BAND.set(1.0 if stage.contains(vpd_kpa) else 0.0)
+
+
+def _attach_stage(data: dict, stage: GrowthStage) -> dict:
+    data["growth_stage"] = stage.name
+    data["vpd_target_low_kpa"] = stage.low_kpa
+    data["vpd_target_high_kpa"] = stage.high_kpa
+    data["vpd_in_target_band"] = stage.contains(data["vpd_kpa"])
+    return data
 
 
 def _publish_metrics(data: dict) -> None:
@@ -108,10 +150,16 @@ def _publish_metrics(data: dict) -> None:
         PLANT_MOOD.labels(band=band.band).set(band.score if band is current else 0)
 
 
-def create_app(source: Source | None = None, leaf_offset: float | None = None) -> FastAPI:
+def create_app(
+    source: Source | None = None,
+    leaf_offset: float | None = None,
+    growth_stage: GrowthStage | None = None,
+) -> FastAPI:
     app = FastAPI(title="grow-room sensor service", version=__version__)
     src = source or build_source()
     offset = leaf_offset_c() if leaf_offset is None else leaf_offset
+    stage = load_growth_stage() if growth_stage is None else growth_stage
+    _publish_stage(stage)
 
     def latest() -> dict:
         try:
@@ -119,7 +167,9 @@ def create_app(source: Source | None = None, leaf_offset: float | None = None) -
         except Exception as exc:
             READ_ERRORS.inc()
             raise HTTPException(status_code=503, detail=f"sensor read failed: {exc}") from exc
+        _attach_stage(data, stage)
         _publish_metrics(data)
+        _publish_stage(stage, data["vpd_kpa"])
         return data
 
     @app.get("/healthz")
@@ -144,8 +194,19 @@ def create_app(source: Source | None = None, leaf_offset: float | None = None) -
             humidity_percent=data["humidity_percent"],
         )
 
+    @app.get("/stage")
+    def growth_stage_route() -> dict:
+        """Configured growth stage and its leaf-VPD target band.
+
+        Does not read the sensor. ``note`` records where the default bands came from.
+        """
+        _publish_stage(stage)
+        return stage.to_api()
+
     @app.get("/metrics")
     def metrics() -> Response:
+        # Stage is config, so the band stays up when the sensor read fails.
+        _publish_stage(stage)
         try:
             latest()  # refresh gauges on each scrape
         except HTTPException:

@@ -7,9 +7,11 @@
 -- Both forms compare the partition column dt to constants. Athena can skip
 -- every other day. Do not wrap dt in a function.
 --
--- Stage bands (null-safe):
---   flower, flowering, bloom -> 1.2 to 1.5 kPa
---   null, blank, veg, and anything else -> 0.8 to 1.2 kPa (veg)
+-- Stage bands, same edges as sensor_service.stage (null-safe).
+--   seedling, clone -> 0.4 to 0.8 kPa
+--   veg, and null, blank, or any other value -> 0.8 to 1.2 kPa
+--   flower, flowering -> 1.2 to 1.5 kPa
+--   late_flower -> 1.4 to 1.6 kPa
 --
 -- Cost: Athena on-demand is $5 per TB scanned in us-west-2. A day of
 -- ship_readings.py (one reading a minute, batches of 10) is a few hundred
@@ -34,12 +36,16 @@ SELECT dt,
          100.0 * count_if(
            vpd_kpa BETWEEN
              CASE
-               WHEN lower(trim(coalesce(stage, ''))) IN ('flower', 'flowering', 'bloom') THEN 1.2
+               WHEN replace(lower(trim(coalesce(stage, ''))), ' ', '_') IN ('seedling', 'clone', 'clones', 'seedling_clone') THEN 0.4
+               WHEN replace(lower(trim(coalesce(stage, ''))), ' ', '_') IN ('flower', 'flowering') THEN 1.2
+               WHEN replace(lower(trim(coalesce(stage, ''))), ' ', '_') IN ('late_flower', 'lateflower') THEN 1.4
                ELSE 0.8
              END
              AND
              CASE
-               WHEN lower(trim(coalesce(stage, ''))) IN ('flower', 'flowering', 'bloom') THEN 1.5
+               WHEN replace(lower(trim(coalesce(stage, ''))), ' ', '_') IN ('seedling', 'clone', 'clones', 'seedling_clone') THEN 0.8
+               WHEN replace(lower(trim(coalesce(stage, ''))), ' ', '_') IN ('flower', 'flowering') THEN 1.5
+               WHEN replace(lower(trim(coalesce(stage, ''))), ' ', '_') IN ('late_flower', 'lateflower') THEN 1.6
                ELSE 1.2
              END
          ) / count(*),

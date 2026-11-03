@@ -4,11 +4,16 @@ resource "aws_sns_topic" "alerts" {
   kms_master_key_id = "alias/aws/sns"        # AWS-managed key: free, same-account publishers allowed
 }
 
+# Created only when alert_email is set. scripts/aws-poc.ps1 up passes
+# -var alert_email from ALERT_EMAIL (env, terraform.tfvars, or the GitHub
+# variable) and, after apply, checks for PendingConfirmation. CI apply sets
+# TF_VAR_alert_email from the same GitHub variable. The inbox link still has
+# to be clicked; Terraform does not wait for that.
 resource "aws_sns_topic_subscription" "email" {
   count     = var.alert_email == "" ? 0 : 1
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
-  endpoint  = var.alert_email # you must click "Confirm subscription" in the email
+  endpoint  = var.alert_email
 }
 
 data "aws_iam_policy_document" "alertmanager_trust" {

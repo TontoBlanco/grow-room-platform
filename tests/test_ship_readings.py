@@ -1,30 +1,60 @@
-"""ship_readings keeps the Glue columns, including optional stage."""
+"""S3 shipper flattens /readings and adds stage only when the API sent one."""
 
 import importlib.util
-import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 
 ROOT = Path(__file__).resolve().parents[1]
+_SPEC = importlib.util.spec_from_file_location(
+    "ship_readings", ROOT / "scripts" / "ship_readings.py"
+)
+ship = importlib.util.module_from_spec(_SPEC)
+assert _SPEC.loader is not None
+_SPEC.loader.exec_module(ship)
+
+BASE_KEYS = {
+    "timestamp",
+    "temperature_c",
+    "humidity_percent",
+    "vpd_kpa",
+    "controller_vpd_kpa",
+    "probe_temperature_c",
+    "probe_humidity_percent",
+    "co2_ppm",
+    "source",
+    "host",
+}
 
 
-def _ship_readings():
-    sys.modules.setdefault("boto3", MagicMock())
-    spec = importlib.util.spec_from_file_location(
-        "ship_readings", ROOT / "scripts" / "ship_readings.py"
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def _reading(**extra):
+    payload = {
+        "timestamp": "2026-11-03T00:00:00+00:00",
+        "temperature_c": 25.0,
+        "humidity_percent": 60.0,
+        "vpd_kpa": 1.268,
+        "co2_ppm": None,
+        "source": "homeassistant",
+        "controller": {"vpd_kpa": 1.2},
+        "probe": {"temperature_c": 24.0, "humidity_percent": 64.0},
+    }
+    payload.update(extra)
+    return payload
 
 
-def test_flatten_forwards_optional_stage_and_leaves_it_null_when_absent():
-    flatten = _ship_readings().flatten
-    bare = flatten({"temperature_c": 24.0, "humidity_percent": 55.0, "source": "homeassistant"})
-    assert bare["stage"] is None
-    assert bare["source"] == "homeassistant"
-    assert bare["temperature_c"] == 24.0
-    flower = flatten({"stage": "flower", "vpd_kpa": 1.3})
-    assert flower["stage"] == "flower"
-    assert flower["vpd_kpa"] == 1.3
+def test_flatten_keeps_the_existing_columns_without_stage():
+    row = ship.flatten(_reading())
+    assert set(row) == BASE_KEYS
+    assert row["controller_vpd_kpa"] == 1.2
+    assert row["probe_temperature_c"] == 24.0
+    assert row["probe_humidity_percent"] == 64.0
+    assert row["host"]
+
+
+def test_flatten_adds_stage_when_the_reading_has_one():
+    row = ship.flatten(_reading(growth_stage=" late_flower "))
+    assert set(row) == BASE_KEYS | {"stage"}
+    assert row["stage"] == "late_flower"
+
+
+def test_flatten_skips_a_blank_stage():
+    row = ship.flatten(_reading(growth_stage="  "))
+    assert "stage" not in row

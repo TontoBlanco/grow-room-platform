@@ -145,15 +145,24 @@ jobs:
           format: spdx-json
           output-file: sbom.spdx.json
 
-      # 5) sign the DIGEST (not a tag - tags can move) and attach the SBOM as a signed attestation
+      # 5) sign the DIGEST (not a tag - tags can move) and attach the SBOM as a signed attestation.
+      # Keyless: id-token: write on this job, Fulcio, public Rekor. Pin cosign 2.6
+      # (not the installer's default 3.x). v2 writes the legacy sha256-<digest>.sig
+      # tag. Cosign 3's referrer bundles are what Kyverno 1.19 verifyImages reported
+      # as "no signatures found" for ghcr.io/tontoblanco/grow-room-platform:sha-*.
+      # The certificate identity below must match k8s/aws-poc/kyverno-verify-images.yaml.
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         if: env.PUSH == 'true'
+        with:
+          cosign-release: v2.6.5
       - name: cosign sign + attest (keyless)
         if: env.PUSH == 'true'
         env:
           REF: ${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
         run: |
-          cosign sign --yes "$REF"
+          cosign sign --yes --registry-referrers-mode=legacy "$REF"
+          # attest defaults to the legacy .att tag in 2.6 (no --new-bundle-format).
+          # It does not accept --registry-referrers-mode.
           cosign attest --yes --type spdxjson --predicate sbom.spdx.json "$REF"
       - name: cosign verify (prove it in the log)
         if: env.PUSH == 'true'

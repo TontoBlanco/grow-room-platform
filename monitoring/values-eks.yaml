@@ -30,3 +30,12 @@ alertmanager:
               started {{ .StartsAt }}
               {{ end }}
             send_resolved: true
+
+# Layered on top of monitoring/values-k3d.yaml. Helm replaces lists, so this
+# empty list drops the grow-room-ha-host scrape (host.k3d.internal:8000, Home
+# Assistant on the lab PC). EKS cannot route that address, the target stays
+# down, and kube-prometheus fires TargetDown. The k3d Application does not
+# load this file, so the local job stays.
+prometheus:
+  prometheusSpec:
+    additionalScrapeConfigs: []

@@ -169,8 +169,10 @@ resource "aws_glue_catalog_table" "readings" {
       name = "host"
       type = "string"
     }
-    # Optional. Null on objects shipped before the field existed, and whenever
-    # the sensor payload omits it. The history dashboard treats null as veg.
+    # Optional. ship_readings adds it when /readings includes growth_stage.
+    # Older objects omit it; Athena returns null. The history dashboard
+    # treats null as the veg band. Queries that do not select stage keep
+    # the same columns.
     columns {
       name = "stage"
       type = "string"

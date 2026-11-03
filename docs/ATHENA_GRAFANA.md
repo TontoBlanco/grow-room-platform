@@ -33,9 +33,11 @@ cent. A full load is six queries, still well under a cent. The workgroup
 `bytes_scanned_cutoff_per_query` is 1 GiB, about half a cent, and then Athena
 cancels the query.
 
-`stage` is optional. `flower`, `flowering`, and `bloom` use 1.2 to 1.5 kPa.
-Null, blank, veg, and every other value use the veg band, 0.8 to 1.2 kPa.
-Rows shipped before the column existed have a null `stage`.
+`stage` is the optional `growth_stage` from `/readings` (`seedling`, `veg`,
+`flower`, `late_flower`). The history board uses the same edges as
+`sensor_service.stage`: seedling 0.4 to 0.8 kPa, veg 0.8 to 1.2, flower 1.2
+to 1.5, late_flower 1.4 to 1.6. Null, blank, and any other value use the veg
+band. Rows shipped before the column existed have a null `stage`.
 
 Run the blocks from the repository root. One command per block. Apply uses
 the same AWS credentials that already manage `infra/telemetry` (the S3 backend

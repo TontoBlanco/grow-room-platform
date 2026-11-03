@@ -3,6 +3,19 @@
 
 replicaCount: 1
 
+# Kubernetes default. values-eks.yaml raises this above the ALB preStop sleep.
+terminationGracePeriodSeconds: 30
+
+# preStopSleepSeconds 0 leaves the pod spec without a lifecycle hook (local k3d).
+# The EKS values sleep longer than the ALB deregistration delay.
+shutdown:
+  preStopSleepSeconds: 0
+
+# Off by default so a 1-replica k3d install is not stuck behind minAvailable: 2.
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 2
+
 image:
   repository: ghcr.io/tontoblanco/grow-room-platform
   # Prefer an immutable tag (git SHA) in GitOps; "latest" is fine for first local smoke.
@@ -75,6 +88,10 @@ probes:
 env:
   SENSOR_SOURCE: simulator
   LEAF_TEMP_OFFSET_C: "0"
+  # One tent-wide stage: seedling (alias clone), veg, flower, late_flower.
+  # veg is leaf VPD 0.8-1.2 kPa. See README "Growth stage".
+  # Optional: VPD_BAND_VEG: "0.8,1.2" or VPD_TARGET_LOW_KPA / VPD_TARGET_HIGH_KPA.
+  GROW_STAGE: veg
   # Non-root + readOnlyRootFilesystem cannot create ./data. /tmp is an emptyDir,
   # so this file does not survive pod replacement. Leave the Postgres URL unset
   # on k3d: the chart does not deploy a database, and the lab does not use RDS.

@@ -25,6 +25,10 @@ spec:
           expr: max(time() - timestamp(grow_vpd_kpa))
     - name: grow-room-slo.alerts
       rules:
+        # Scale-to-zero drill: SensorDataStale fires first (freshness > 120s,
+        # then for: 5m, about 7 min). BurnFast also needs the 1h window over
+        # 14.4x (about 11 min of up=0, then for: 2m) and may not fire at all
+        # if the target disappears instead of reporting up=0. See docs/aws-poc/DRILLS.md.
         - alert: SensorAvailabilityBudgetBurnFast
           expr: |
             (1 - slo:sensor_availability:ratio_rate1h) > (14.4 * 0.01)

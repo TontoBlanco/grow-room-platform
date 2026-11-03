@@ -11,7 +11,7 @@ SQL_PATH = ROOT / "analytics" / "athena" / "history_by_day.sql"
 
 DT_FROM = "dt >= '${__from:date:YYYY-MM-DD}'"
 DT_TO = "dt <= '${__to:date:YYYY-MM-DD}'"
-FLOWER = "lower(trim(coalesce(stage, ''))) IN ('flower', 'flowering', 'bloom')"
+STAGE_KEY = "replace(lower(trim(coalesce(stage, ''))), ' ', '_')"
 
 
 def _dashboard() -> dict:
@@ -42,10 +42,14 @@ def _embedded_dashboard() -> dict:
 
 
 def _band(stage: str | None) -> tuple[float, float]:
-    """Veg unless the reading names a flower stage. Null and blank are veg."""
-    normalized = (stage or "").strip().lower()
-    if normalized in {"flower", "flowering", "bloom"}:
+    """Same edges as sensor_service.stage. Null, blank, and unknown are veg."""
+    normalized = (stage or "").strip().lower().replace(" ", "_")
+    if normalized in {"seedling", "clone", "clones", "seedling_clone"}:
+        return (0.4, 0.8)
+    if normalized in {"flower", "flowering"}:
         return (1.2, 1.5)
+    if normalized in {"late_flower", "lateflower"}:
+        return (1.4, 1.6)
     return (0.8, 1.2)
 
 
@@ -102,22 +106,31 @@ def test_stage_band_is_null_safe_and_matches_the_console_sql():
     band_sqls = [sql for sql in sqls if "pct_in_band" in sql]
     assert len(band_sqls) == 2
     for sql in band_sqls:
-        assert sql.count(FLOWER) == 2
+        assert sql.count(STAGE_KEY) == 6
+        assert "IN ('seedling', 'clone', 'clones', 'seedling_clone') THEN 0.4" in sql
+        assert "IN ('seedling', 'clone', 'clones', 'seedling_clone') THEN 0.8" in sql
+        assert "IN ('flower', 'flowering') THEN 1.2" in sql
+        assert "IN ('flower', 'flowering') THEN 1.5" in sql
+        assert "IN ('late_flower', 'lateflower') THEN 1.4" in sql
+        assert "IN ('late_flower', 'lateflower') THEN 1.6" in sql
         assert "ELSE 0.8" in sql
         assert "ELSE 1.2" in sql
         assert "coalesce(stage, '')" in sql
     console = SQL_PATH.read_text()
-    assert console.count(FLOWER) == 2
-    assert "ELSE 0.8" in console
+    assert console.count(STAGE_KEY) == 6
+    assert "THEN 0.4" in console
+    assert "THEN 1.6" in console
     assert "dt >= date_format(current_date - interval '30' day, '%Y-%m-%d')" in console
     assert _band(None) == (0.8, 1.2)
     assert _band("") == (0.8, 1.2)
     assert _band("  veg  ") == (0.8, 1.2)
-    assert _band("seedling") == (0.8, 1.2)
     assert _band("vegetative") == (0.8, 1.2)
+    assert _band("seedling") == (0.4, 0.8)
+    assert _band("clone") == (0.4, 0.8)
     assert _band(" Flower ") == (1.2, 1.5)
     assert _band("flowering") == (1.2, 1.5)
-    assert _band("bloom") == (1.2, 1.5)
+    assert _band("late_flower") == (1.4, 1.6)
+    assert _band("late flower") == (1.4, 1.6)
 
 
 def test_source_counts_treat_blank_source_as_unknown():
