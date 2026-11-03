@@ -169,6 +169,12 @@ resource "aws_glue_catalog_table" "readings" {
       name = "host"
       type = "string"
     }
+    # Optional. Null on objects shipped before the field existed, and whenever
+    # the sensor payload omits it. The history dashboard treats null as veg.
+    columns {
+      name = "stage"
+      type = "string"
+    }
   }
 }
 
@@ -190,6 +196,9 @@ resource "aws_athena_workgroup" "telemetry" {
 }
 
 # ---------- home PC identity: IAM Roles Anywhere ----------
+# grow-room-home-shipper stays write-only: s3:PutObject on readings/* and the
+# KMS calls S3 needs to encrypt those objects. Do not add Athena, Glue, or
+# s3:GetObject here. Grafana uses grow-room-grafana-reader (grafana_reader.tf).
 resource "aws_rolesanywhere_trust_anchor" "home" {
   name    = "grow-room-home-ca"
   enabled = true

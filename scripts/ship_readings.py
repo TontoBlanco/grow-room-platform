@@ -34,6 +34,8 @@ def flatten(r: dict) -> dict:
         "co2_ppm": r.get("co2_ppm"),
         "source": r.get("source"),
         "host": socket.gethostname(),
+        # Optional. Missing on older payloads; the history board treats null as veg.
+        "stage": r.get("stage"),
     }
 
 
