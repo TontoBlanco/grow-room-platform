@@ -306,6 +306,39 @@ The original `infra/` module still only prints a reminder to create a
 $20 budget. It does not create one. The $25 budget is in the proof-of-concept
 bootstrap.
 
+## Failure drills
+
+Pod delete, node drain, RDS failover, and scale-to-zero are written up in
+[DRILLS.md](DRILLS.md). On November 3, 2026, scaling `sensor-service` to 0
+emailed `SensorDataStale` first. `SensorAvailabilityBudgetBurnFast` needs the
+1-hour burn window, so it is later when it fires at all. The same session saw
+one HTTP 502 on a pod delete and on a node drain; the chart's preStop sleep,
+termination grace period, ALB deregistration delay, and PodDisruptionBudget
+are the follow-up for the next session.
+
+## Image signatures
+
+`ci.yml` signs the pushed digest with keyless cosign (GitHub OIDC, Fulcio,
+public Rekor) and checks this identity:
+
+`https://github.com/TontoBlanco/grow-room-platform/.github/workflows/ci.yml@refs/heads/main`
+
+issuer `https://token.actions.githubusercontent.com`.
+
+That string is also the subject on
+[`k8s/aws-poc/kyverno-verify-images.yaml`](../../k8s/aws-poc/kyverno-verify-images.yaml).
+The policy stays in **Audit**. `mutateDigest` is false while the failure
+action is Audit (Kyverno rejects `true`). `verifyDigest` is false because the
+chart deploys a tag. After a PolicyReport pass on a `sha-*` image, switch
+`failureAction` to `Enforce` and set `mutateDigest` and `verifyDigest` to
+true. Signing uses cosign 2.6 legacy `sha256-<digest>.sig` tags. Cosign 3
+referrer bundles were invisible to Kyverno 1.19 (`no signatures found`).
+
+`ClusterPolicy` `verifyImages` is deprecated in Kyverno 1.19 in favor of
+`ImageValidatingPolicy` (`policies.kyverno.io/v1`), with removal planned for
+1.20. Migrating this policy is a later task.
+<https://kyverno.io/docs/guides/migration-to-cel/>
+
 ## Limits / next steps
 
 - The proof of concept was destroyed after the November 1, 2026 demo. These

@@ -1,4 +1,6 @@
 # Local k3d overrides — zero cloud cost, no HA secrets.
+# PDB and the ALB preStop sleep stay at the chart defaults (off). A 1-replica
+# lab must not inherit minAvailable: 2 from the EKS values.
 replicaCount: 1
 
 image:

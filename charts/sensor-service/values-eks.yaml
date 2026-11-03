@@ -1,6 +1,19 @@
 # charts/sensor-service/values-eks.yaml - fill from: terraform output
 replicaCount: 3
 
+# ALB ip targets keep sending until deregistration_delay.timeout_seconds elapses
+# (annotation below, 20s). preStop must be longer than that, and the grace
+# period longer than preStop, or the process is gone while the ALB is still
+# routing and /healthz returns 502. k3d leaves both at the chart defaults.
+terminationGracePeriodSeconds: 45
+shutdown:
+  preStopSleepSeconds: 30
+
+# 3 replicas, one disruption at a time (node drain, rolling update).
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
 # Tent-wide stage for the aws-poc Argo app. veg is 0.8-1.2 kPa leaf VPD.
 env:
   GROW_STAGE: veg
@@ -22,6 +35,9 @@ ingress:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    # Default delay is 300s. 20s is enough for in-flight /healthz and short
+    # enough that the 30s preStop covers delay plus controller propagation.
+    alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=20
     alb.ingress.kubernetes.io/tags: Project=grow-room,Environment=poc
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"
