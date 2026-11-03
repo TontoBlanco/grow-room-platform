@@ -20,6 +20,7 @@ spec:
       labels:
         {{- include "sensor-service.selectorLabels" . | nindent 8 }}
     spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -31,6 +32,13 @@ spec:
         - name: sensor-service
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if gt (int .Values.shutdown.preStopSleepSeconds) 0 }}
+          lifecycle:
+            preStop:
+              exec:
+                {{- /* python:3.12-slim has /bin/sh. Sleep runs as the container user. */}}
+                command: ["/bin/sh", "-c", "sleep {{ int .Values.shutdown.preStopSleepSeconds }}"]
+          {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:

@@ -56,6 +56,18 @@ stale.”
 Alert when that is true for several minutes (see scrape-down / freshness
 notes in the main guide).
 
+## PoC drill: scale sensor-service to zero
+
+On the EKS proof of concept, pause Argo auto-sync and scale the deployment
+to 0 (full commands in [docs/aws-poc/DRILLS.md](../docs/aws-poc/DRILLS.md)).
+`SensorDataStale` is the first email: freshness crosses 120s, then `for: 5m`,
+so about 7 minutes after the scale, plus Alertmanager `group_wait` 30s.
+`SensorAvailabilityBudgetBurnFast` also needs the 1-hour window past 14.4x
+(about 11 minutes of `up=0`, then `for: 2m`). If Prometheus drops the target
+instead of recording `up=0`, BurnFast does not fire and `SensorDataStale`
+still does, via `absent(grow_vpd_kpa)`. The November 3, 2026 session matched
+that order. A missing BurnFast email at 5-8 minutes is not a failed drill.
+
 ## Runbook — GrowRoomSensorScrapeDown
 
 **Symptom:** Alert `GrowRoomSensorScrapeDown` firing; Grafana VPD panels empty
