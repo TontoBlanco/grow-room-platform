@@ -1,5 +1,10 @@
 """The Grafana reader is a separate role. The shipper stays write-only."""
 
+import importlib.util
+import json
+import threading
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -97,7 +102,14 @@ def test_grafana_reader_is_least_privilege_and_separate():
 
 def test_grafana_values_pin_the_helper_and_do_not_carry_secrets():
     assert "grafana-athena-datasource@3.4.2" in VALUES
-    assert "http://127.0.0.1:9911" in VALUES
+    assert "http://127.0.0.1:9911/credentials" in VALUES
+    assert "AWS_CONTAINER_CREDENTIALS_FULL_URI: http://127.0.0.1:9911/credentials" in VALUES
+    assert "forward_settings_to_plugins: grafana-athena-datasource" in VALUES
+    assert "authType: default" in VALUES
+    assert "allowed_auth_providers: default" in VALUES
+    assert "credential-process" in VALUES
+    assert "forward_host_env_vars" not in VALUES
+    assert "AWS_EC2_METADATA_SERVICE_ENDPOINT" not in VALUES
     assert "secretName: grafana-athena-identity" in VALUES
     assert "optional: true" in VALUES
     assert "beec9ed1c492d93db809890f16713e3556353294b823c2184ad4e891f1b2b54d" in VALUES
@@ -114,7 +126,15 @@ def test_runbook_uses_the_real_names():
         "grow-room-grafana-reader",
         "athena-grow-room",
         "grafana-athena-datasource@3.4.2",
-        "http://127.0.0.1:9911",
+        "http://127.0.0.1:9911/credentials",
+        "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+        "forward_settings_to_plugins",
+        "grafana-reader.pem",
+        "separate drive",
+        "Grafana reads `grafana.ini` at process start",
+        "Argo only updates the ConfigMap",
+        "kubectl -n monitoring rollout restart deploy/monitoring-grafana",
+        "kubectl -n argocd patch application monitoring --type merge --patch-file",
         "terraform -chdir=infra/telemetry",
         "helm upgrade --install monitoring",
         "C:\\src\\grow-room-pki\\ca.pem",
@@ -124,3 +144,174 @@ def test_runbook_uses_the_real_names():
         assert needle in DOC
     for placeholder in ("<ACCOUNT", "YOUR_", "TODO", "changeme", "example.com"):
         assert placeholder not in DOC
+
+
+def _credential_server_source() -> str:
+    lines = VALUES.splitlines()
+    opener = "exec python3 - << 'ATHENA_CONTAINER_CREDENTIALS_PY'"
+    start = next(i for i, line in enumerate(lines) if line.strip() == opener)
+    end = next(
+        i
+        for i, line in enumerate(lines)
+        if i > start and line.strip() == "ATHENA_CONTAINER_CREDENTIALS_PY"
+    )
+    body = lines[start + 1 : end]
+    indent = len(body[0]) - len(body[0].lstrip(" "))
+    stripped = []
+    for line in body:
+        if line.strip() == "":
+            stripped.append("")
+            continue
+        assert line.startswith(" " * indent)
+        stripped.append(line[indent:])
+    return "\n".join(stripped) + "\n"
+
+
+def _load_credential_server(tmp_path: Path):
+    path = tmp_path / "athena_container_credentials.py"
+    path.write_text(_credential_server_source(), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("athena_container_credentials", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _write_helper(path: Path, script: str) -> None:
+    path.write_text(script, encoding="utf-8")
+    path.chmod(0o755)
+
+
+def _identity(tmp_path: Path) -> Path:
+    directory = tmp_path / "identity"
+    directory.mkdir()
+    (directory / "tls.crt").write_text("cert\n", encoding="utf-8")
+    (directory / "tls.key").write_text("key\n", encoding="utf-8")
+    (directory / "trust-anchor-arn").write_text(
+        " arn:aws:rolesanywhere:us-west-2:1:trust-anchor/a \n",
+        encoding="utf-8",
+    )
+    (directory / "profile-arn").write_text(
+        "arn:aws:rolesanywhere:us-west-2:1:profile/b\n",
+        encoding="utf-8",
+    )
+    (directory / "role-arn").write_text(
+        "\tarn:aws:iam::1:role/grow-room-grafana-reader\n",
+        encoding="utf-8",
+    )
+    return directory
+
+
+def _serve(module):
+    server = module.ThreadingHTTPServer(("127.0.0.1", 0), module.Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server
+
+
+def test_parse_expiration_accepts_roles_anywhere_timestamps(tmp_path: Path):
+    module = _load_credential_server(tmp_path)
+    zulu = module.parse_expiration("2099-01-01T00:00:00Z")
+    fractional = module.parse_expiration("2099-01-01T00:00:00.123Z")
+    offset = module.parse_expiration("2099-01-01T00:00:00.123456-07:00")
+    assert zulu == fractional
+    assert zulu.tzinfo is not None
+    assert offset.utcoffset() is not None
+    doc = module.to_container_credentials(
+        {
+            "AccessKeyId": "ASIATEST",
+            "SecretAccessKey": "secret-value",
+            "SessionToken": "session-token",
+            "Expiration": "2099-01-01T00:00:00.123Z",
+        }
+    )
+    assert doc["Token"] == "session-token"
+    assert "SessionToken" not in doc
+
+
+def test_container_credential_server_serves_the_ecs_document(tmp_path: Path):
+    module = _load_credential_server(tmp_path)
+    calls = tmp_path / "calls"
+    document = {
+        "Version": 1,
+        "AccessKeyId": "ASIATEST",
+        "SecretAccessKey": "secret-value",
+        "SessionToken": "session-token",
+        "Expiration": "2099-01-01T00:00:00Z",
+    }
+    helper = tmp_path / "aws_signing_helper"
+    _write_helper(
+        helper,
+        "\n".join(
+            [
+                "#!/usr/bin/env python3",
+                "import json, pathlib, sys",
+                f"path = pathlib.Path({str(calls)!r})",
+                "with path.open('a', encoding='utf-8') as handle:",
+                "    handle.write('\\n'.join(sys.argv) + '\\n---\\n')",
+                f"print(json.dumps({document!r}))",
+                "",
+            ]
+        ),
+    )
+    module.HELPER = str(helper)
+    module.IDENTITY = str(_identity(tmp_path))
+    module.CACHE = module._Cache()
+    server = _serve(module)
+    port = server.server_address[1]
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/credentials", timeout=5) as response:
+            body = json.load(response)
+            assert response.status == 200
+        assert body == {
+            "AccessKeyID": "ASIATEST",
+            "SecretAccessKey": "secret-value",
+            "Token": "session-token",
+            "Expiration": "2099-01-01T00:00:00Z",
+        }
+        assert "SessionToken" not in body
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/credentials", timeout=5) as again:
+            assert json.load(again)["Token"] == "session-token"
+        recorded = calls.read_text(encoding="utf-8")
+        assert recorded.count("\n---\n") == 1
+        assert "credential-process" in recorded
+        assert "arn:aws:iam::1:role/grow-room-grafana-reader" in recorded
+        assert "arn:aws:rolesanywhere:us-west-2:1:trust-anchor/a" in recorded
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_container_credential_server_hides_failed_helper_stdout(tmp_path: Path):
+    module = _load_credential_server(tmp_path)
+    helper = tmp_path / "aws_signing_helper"
+    _write_helper(
+        helper,
+        "\n".join(
+            [
+                "#!/usr/bin/env python3",
+                "import sys",
+                "sys.stdout.write('SECRETKEYMATERIAL')",
+                "sys.stderr.write('rolesanywhere unreachable')",
+                "raise SystemExit(1)",
+                "",
+            ]
+        ),
+    )
+    module.HELPER = str(helper)
+    module.IDENTITY = str(_identity(tmp_path))
+    module.CACHE = module._Cache()
+    server = _serve(module)
+    port = server.server_address[1]
+    try:
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/credentials", timeout=5)
+        raise AssertionError("expected HTTP 500")
+    except urllib.error.HTTPError as exc:
+        payload = json.load(exc)
+        assert exc.code == 500
+        assert payload["code"] == "CredentialProcessFailed"
+        assert payload["message"] == "rolesanywhere unreachable"
+        assert "SECRETKEYMATERIAL" not in json.dumps(payload)
+    finally:
+        server.shutdown()
+        server.server_close()
