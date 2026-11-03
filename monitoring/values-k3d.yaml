@@ -60,6 +60,9 @@ grafana:
     aws:
       # Default chain only, so a pasted access key in the UI is not a second auth path.
       allowed_auth_providers: default
+    plugins:
+      # Grafana strips host env from plugins; pass the sidecar endpoint through.
+      forward_host_env_vars: AWS_EC2_METADATA_SERVICE_ENDPOINT,AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE,AWS_REGION,AWS_DEFAULT_REGION,NO_PROXY
   additionalDataSources:
     - name: Amazon Athena
       uid: athena-grow-room
