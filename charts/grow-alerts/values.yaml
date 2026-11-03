@@ -10,7 +10,7 @@ alerts:
     prefix: readings/
     region: us-west-2
   probeDrift:
-    enabled: false
+    enabled: true
     # |calculated probe VPD - controller VPD| above this, held for `for`.
     thresholdKpa: 0.15
     for: 1h
