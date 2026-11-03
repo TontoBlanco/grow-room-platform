@@ -95,7 +95,7 @@ gh api --method POST repos/TontoBlanco/grow-room-platform/milestones -f title="P
 ```
 
 ```powershell
-gh api --method POST repos/TontoBlanco/grow-room-platform/milestones -f title="Roadmap: growth stage VPD bands" -f description="Open pull request 77, branch cursor/growth-stage-vpd-1ef8."
+gh api --method POST repos/TontoBlanco/grow-room-platform/milestones -f title="Growth stage VPD bands" -f description="Merged. Pull request 77, 3 November 2026. GROW_STAGE on main."
 ```
 
 ```powershell

@@ -14,7 +14,8 @@ By the end of the week you have:
    Home Assistant controller / probe / port panels when those series exist).
 4. **PrometheusRules** for humidity out of range, scrape down, and pod restarts.
 5. **Two SLOs** (ingest availability, data freshness) + one runbook.
-6. Still **$0** cloud — same k3d cluster `grow-room-dev` from Week 3.
+6. This week's cluster is still the $0 k3d lab from Week 3. The later AWS
+   sessions are a different root. See the [documentation site](index.md).
 
 You already know Deployments, Services, and Argo sync. This week adds the
 monitoring *control plane* that watches those objects. The sensor chart already
@@ -585,7 +586,12 @@ write two honest SLOs for one service.
 
 ---
 
-## Step 8: Cost — stay at $0
+## Step 8: Cost — this week stays at $0
+
+The table below is the Week 4 lab. It is not the project as of 3 November
+2026. The proof of concept is applied for a session and then destroyed.
+Telemetry stays up at about 1 USD per month. See
+[Phase 2](phases/phase-2-up-verify-down.md).
 
 | Path | Cost |
 |------|------|
@@ -609,7 +615,7 @@ Do not point this Application at EKS until you deliberately accept cloud cost.
 - [ ] At least one alert proven to fire and resolve (scrape down or humidity test)
 - [ ] Two SLOs + scrape-down runbook reviewed (`monitoring/docs-slo.md`)
 - [ ] README roadmap Week 4 checkbox updated
-- [ ] Still **$0** AWS for this week
+- [ ] This week's lab did not create AWS resources. Later phases do, on purpose.
 - [ ] Notes / study log updated (what you wired and why)
 
 Week 5 is hardening, docs polish, and Terraform Associate prep.

@@ -124,6 +124,26 @@ These are the switched devices on the controller. The default set is `port_1`, `
 
 **No HA sample** on these panels means Compose has not exported port gauges yet. The gauges are created only after a successful Home Assistant read.
 
+### Growth stage VPD target
+
+`GROW_STAGE` is one stage for the whole tent. The default is `veg`. It is not the plant-mood score. Mood stays the mixed-tent category. The stage picks the leaf-VPD band the bottom row draws. Pull request [#77](https://github.com/TontoBlanco/grow-room-platform/pull/77) merged on 3 November 2026.
+
+| `GROW_STAGE` | Inclusive leaf VPD (kPa) |
+| --- | --- |
+| `seedling` (`clone` is stored as seedling) | 0.4–0.8 |
+| `veg` | 0.8–1.2 |
+| `flower` | 1.2–1.5 |
+| `late_flower` | 1.4–1.6 |
+
+| Panel | Query | Plain meaning |
+| --- | --- | --- |
+| Growth stage | `max by (job, stage) (grow_room_stage_info)` | The configured stage. The sample value is always 1. Read the `stage` label. |
+| VPD in band | `max by (job) (grow_vpd_in_target_band)` | 1 when computed leaf VPD is inside the inclusive band, otherwise 0. Missing until a reading succeeds. |
+| Target low kPa | `max by (job) (grow_vpd_target_low_kpa)` | Lower edge of the active band. |
+| Target high kPa | `max by (job) (grow_vpd_target_high_kpa)` | Upper edge of the active band. |
+| VPD vs stage target | `grow_vpd_kpa` plus the two target gauges, each `max by (job)` | Leaf VPD with the band drawn around it. The lines move when the stage changes. |
+| How the target band is chosen | Text panel, no query | Says the band comes from `GROW_STAGE`, not from a number typed into the dashboard. |
+
 ## grow-room SLOs
 
 The JSON is inside `monitoring/manifests/grafana-dashboard-grow-room-slo.yaml`. The time range is seven days. The recording rules are in `monitoring/manifests/grow-room-slo-rules.yaml`.

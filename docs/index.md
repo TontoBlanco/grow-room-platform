@@ -50,7 +50,7 @@ I built the local project in five weeks, then a one-day AWS stack, then seven nu
 | [Week 3](phases/week-3-gitops.md) | Helm, k3d, Argo CD app-of-apps | PR #1 |
 | [Week 4](phases/week-4-observability.md) | Prometheus, Grafana, the live scrape | PR #4, #12, #14, #25, #29, #32 |
 | [Week 5](phases/week-5-audit.md) | Plant and batch history, then optional Postgres | PR #7, #38 |
-| [AWS proof of concept](phases/aws-proof-of-concept.md) | VPC, EKS, load balancer, database. Applied 1 November 2026 and destroyed the same day | PR #47, #50, #51 |
+| [AWS proof of concept](phases/aws-proof-of-concept.md) | Session stack in `us-west-2`. First apply 1 November 2026. Test session 3 November 2026 passed, then teardown. Not left running. | PR #47, #50, #51, #75 |
 | [Phase 1](phases/phase-1-oidc.md) | Terraform plan on pull requests, apply only when I approve | PR #54, #66 |
 | [Phase 2](phases/phase-2-up-verify-down.md) | `scripts/aws-poc.ps1` with `up`, `verify`, and `down` | PR #56 |
 | [Phase 3](phases/phase-3-telemetry.md) | Home shipper, S3, Glue, Athena, and the EKS exporter | PR #71, #73 |
@@ -60,6 +60,8 @@ I built the local project in five weeks, then a one-day AWS stack, then seven nu
 | [Phase 7](phases/phase-7-ansible.md) | Ansible for the WSL2 workstation | PR #69 |
 
 A service level objective is a target I chose, such as "99 percent of scrapes succeed." It is not a contract with a customer.
+
+As of 3 November 2026, phases 3 through 7 are done. The paid test session that day passed, and teardown was clean. The telemetry stack stays up at about 1 USD per month. `GROW_STAGE` landed the same day in pull request [#77](https://github.com/TontoBlanco/grow-room-platform/pull/77). What is still ahead is the [roadmap](project-management/roadmap.md).
 
 ## What this is not
 

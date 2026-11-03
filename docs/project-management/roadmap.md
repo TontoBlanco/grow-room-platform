@@ -4,9 +4,9 @@ This is the order I will do the remaining work. Items above the line are not sta
 
 ## 1. Plant stage and VPD bands
 
-Pull request [#77](https://github.com/TontoBlanco/grow-room-platform/pull/77), branch `cursor/growth-stage-vpd-1ef8`, is open. The title is "Add a growth-stage setting so VPD targets follow the stage."
+Done on `main`. Pull request [#77](https://github.com/TontoBlanco/grow-room-platform/pull/77) merged on 3 November 2026.
 
-Today the plant-mood gauge uses one set of bands for a mixed tent. Seedlings usually want a lower vapor pressure deficit than later growth. The gauge does not know the stage. This change is the one that teaches it.
+`GROW_STAGE` is one tent-wide stage. The default is `veg`. It selects an inclusive leaf-VPD band: seedling 0.4–0.8, veg 0.8–1.2, flower 1.2–1.5, late flower 1.4–1.6, in kilopascals. Plant mood is still the separate mixed-tent gauge. The dashboard row is **Growth stage VPD target**. The panels are in the [Grafana guide](../grafana.md).
 
 ## 2. Athena as a data source in local Grafana
 

@@ -8,14 +8,17 @@ By the end of the week you have:
 
 1. A **`charts/sensor-service`** Helm chart (Deployment, Service, SA, optional HPA).
 2. A **`gitops/`** App-of-apps layout Argo CD can sync.
-3. A local **k3d** cluster named `grow-room-dev` with Argo CD installed ($0 cloud).
+3. A local **k3d** cluster named `grow-room-dev` with Argo CD installed (this week's cluster is $0 cloud).
 4. A manual sync loop: change a value → commit/push → Argo sync → Pod rolls.
 5. A clear plan for the later **CI → GitOps** handoff (bump `image.tag`) — you
    write that workflow yourself (sample at the bottom only).
 
 You already operate Helm and Argo CD on the delivery side at work. This week is
 the portfolio evidence that you can also **own the path from GHCR image → GitOps
-values → running Pod** on a cluster you control, with zero AWS spend.
+values → running Pod** on a cluster you control. This week does not
+spend AWS money. Later sessions do. The current cost posture is on the
+[documentation site](index.md): the k3d lab stays free, a paid proof of
+concept comes up and goes down, and telemetry stays at about 1 USD per month.
 
 Try each step before peeking at the sample CI bump workflow at the bottom.
 
@@ -344,7 +347,13 @@ CI/CD.
 
 ---
 
-## Step 8: Cost — stay at $0 this week
+## Step 8: Cost — this week stays at $0
+
+This week is the laptop. It is not a claim that the whole project is
+local-only. As of 3 November 2026 I also apply `infra/aws-poc` for a
+session and keep `infra/telemetry` up at about 1 USD per month. Those
+steps are [Phase 2](phases/phase-2-up-verify-down.md) and
+[Phase 3](phases/phase-3-telemetry.md). Do not start them from this guide.
 
 | Path | Cost |
 |------|------|

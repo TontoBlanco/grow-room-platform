@@ -16,8 +16,10 @@ By the end of the week you have:
 4. **Compliance notes** (STIG-style hardening, SBOM/signing, least privilege)
    you can defend in interviews — educational talking points only.
 5. A **write-up outline** (architecture diagram + blog skeleton) ready to publish.
-6. Still **$0** cloud — SQLite by default, optional local Postgres via Compose.
-   No RDS. No `terraform apply` against a real AWS account for this week.
+6. This week's audit store is still local: SQLite by default, optional
+   Postgres via Compose. No `terraform apply` in this week. Session RDS
+   came later and is destroyed with the proof of concept. See the
+   [documentation site](index.md).
 
 You already know Deployments, Services, Argo sync, and Prometheus scrapes.
 This week adds an **immutable evidence trail** next to the mutable live objects
@@ -190,7 +192,7 @@ the plant row converges to the latest `to_state`.
 
 ---
 
-## Step 4: Local run path (SQLite, $0)
+## Step 4: Local run path (SQLite)
 
 Default path: `AUDIT_DB_PATH` → `./data/audit.db` (stdlib `sqlite3`, no new pip
 deps).
@@ -235,7 +237,7 @@ curl -s localhost:8000/audit/plants/$PLANT_ID/history | jq .
 curl -s localhost:8000/audit/integrity | jq .
 ```
 
-### Optional Postgres (local, still $0)
+### Optional Postgres (local Compose)
 
 SQLite stays the default for local runs, k3d, and any pytest invocation that
 does not set a database URL. To use Postgres for `/audit`:
@@ -345,10 +347,10 @@ Out of scope for "code done":
 4. **Relational model, same API:** "SQLite is the default. Postgres uses the
    same three tables — projections for batches and plants, an append-only
    event chain with foreign keys and a single writer lock on the hash tail.
-   k3d stays on SQLite. No RDS."
-5. **$0 lab discipline:** "SQLite locally, optional local Postgres, k3d for the
-   platform weeks, Terraform modules validated without applying paid EKS —
-   budget as a first-class control."
+   k3d stays on SQLite. Session RDS is a later stack and is destroyed with it."
+5. **Lab discipline:** "SQLite on the laptop, optional local Postgres, k3d for the
+   platform weeks. The local Terraform root is validated without apply.
+   The proof of concept is a separate session, and the budget does not stop the spend."
 6. **Security+ / cleared background without inventing jobs:** "I use the same
    vocabulary as authorization packages — evidence, attribution, integrity,
    least privilege — on a personal CEA portfolio so I can discuss it concretely."

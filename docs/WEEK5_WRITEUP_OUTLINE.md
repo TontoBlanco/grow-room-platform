@@ -44,7 +44,7 @@ One-sentence caption:
 
 > Climate telemetry (Prometheus/Grafana) plus an append-only seed-to-sale style
 > audit log (SQLite hash chain) on the same FastAPI service, delivered through
-> GitOps on k3d at $0 cloud spend.
+> GitOps on k3d. The laptop lab does not bill AWS. Later sessions do.
 
 ---
 
@@ -65,7 +65,7 @@ practicing compliance evidence patterns; it is not a licensed METRC client.
 
 **Title ideas**
 
-- "Append-only plant audit logs on a $0 Kubernetes lab"
+- "Append-only plant audit logs on the local Kubernetes lab"
 - "GitOps thinking applied to seed-to-sale style evidence"
 - "From VPD dashboards to compliance trails in five weeks"
 

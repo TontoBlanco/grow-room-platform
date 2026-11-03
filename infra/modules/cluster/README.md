@@ -1,7 +1,10 @@
 # modules/cluster
 
-Week 2 cluster module: **local** (k3d-friendly outputs, zero AWS cost) or
+Week 2 cluster module: **local** (k3d-friendly outputs, no AWS resources from this module) or
 **eks** (security group + IAM role stubs for a future `aws_eks_cluster`).
+
+This module is not the cluster I apply. That root is `infra/aws-poc`, and I
+bring it up for a session. See the [documentation site](../../../docs/index.md).
 
 ## Modes
 
