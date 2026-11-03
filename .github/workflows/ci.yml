@@ -30,7 +30,7 @@ jobs:
           helm pull prometheus-community/kube-prometheus-stack --version 92.13.1 --untar --untardir "$tmp"
           helm lint "$tmp/kube-prometheus-stack" -n monitoring -f monitoring/values-k3d.yaml
           helm template monitoring "$tmp/kube-prometheus-stack" -n monitoring -f monitoring/values-k3d.yaml >/tmp/monitoring-rendered.yaml
-          grep -q 'grafana-athena-datasource 3.4.2' /tmp/monitoring-rendered.yaml
+          grep -q 'grafana-athena-datasource@3.4.2' /tmp/monitoring-rendered.yaml
           grep -q 'uid: athena-grow-room' /tmp/monitoring-rendered.yaml
           grep -q 'athena-rolesanywhere' /tmp/monitoring-rendered.yaml
 
