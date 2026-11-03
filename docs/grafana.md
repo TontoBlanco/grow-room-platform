@@ -144,6 +144,24 @@ These are the switched devices on the controller. The default set is `port_1`, `
 | VPD vs stage target | `grow_vpd_kpa` plus the two target gauges, each `max by (job)` | Leaf VPD with the band drawn around it. The lines move when the stage changes. |
 | How the target band is chosen | Text panel, no query | Says the band comes from `GROW_STAGE`, not from a number typed into the dashboard. |
 
+## Grow-room History
+
+This board is uid `grow-room-history`. It is not Prometheus. Each panel sends its own query to Athena workgroup `grow-room-telemetry`, database `grow_room_telemetry`, table `readings`, in `us-west-2`. The time range defaults to 30 days. Auto-refresh is off, so opening the board does not scan Athena on a timer.
+
+Grafana uses role `grow-room-grafana-reader`. That role can query. It is not `grow-room-home-shipper`, which can only put objects. Pull request [#80](https://github.com/TontoBlanco/grow-room-platform/pull/80) merged this. The certificate, the secret, and the apply commands are in [Athena in Grafana](ATHENA_GRAFANA.md).
+
+Athena charges by data scanned. At one reading a minute the daily file is small, and the workgroup stops a query at 1 GB. Leaving auto-refresh off is how I keep that bill from ticking while the tab sits open.
+
+| Panel | What it shows |
+| --- | --- |
+| Grow-room VPD | A link back to the live Prometheus board |
+| Daily VPD (avg / min / max) | One row per day from the archive |
+| Daily temperature (avg / min / max) | The same, for temperature |
+| Daily relative humidity (avg / min / max) | The same, for humidity |
+| Percent of readings in the target band | How much of the day sat inside the stage band |
+| Readings by source | Home Assistant rows versus simulator rows |
+| Daily climate | Temperature, humidity, and VPD together for the selected days |
+
 ## grow-room SLOs
 
 The JSON is inside `monitoring/manifests/grafana-dashboard-grow-room-slo.yaml`. The time range is seven days. The recording rules are in `monitoring/manifests/grow-room-slo-rules.yaml`.

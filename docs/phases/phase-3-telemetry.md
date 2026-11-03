@@ -110,3 +110,5 @@ The standing cost is the KMS key, plus a few cents of S3. Athena charges by data
 Write-only was a real constraint, not a slogan. The first policy I sketched could list and delete. The policy in Git cannot. `PutObject` on `readings/*` is the whole S3 statement, plus the two KMS actions the encryption needs.
 
 The EKS exporter is a different bucket and a different identity. It ships simulator readings during a session. The home shipper is the one that carries `source=homeassistant`. The Athena query filters on that, so a session full of simulator rows does not look like the tent.
+
+Pull request [#80](https://github.com/TontoBlanco/grow-room-platform/pull/80) added a second role, `grow-room-grafana-reader`, so the k3d Grafana can query this workgroup. The shipper stays write-only. The board is **Grow-room History**. I am not copying the install steps here. They are in [Athena in Grafana](../ATHENA_GRAFANA.md).

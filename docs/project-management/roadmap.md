@@ -10,9 +10,7 @@ Done on `main`. Pull request [#77](https://github.com/TontoBlanco/grow-room-plat
 
 ## 2. Athena as a data source in local Grafana
 
-In progress. Pull request [#80](https://github.com/TontoBlanco/grow-room-platform/pull/80) is open, on branch `cursor/grafana-athena-history-1d19`. Its title is "Add Athena history to local Grafana." The write-up in that pull request is `docs/ATHENA_GRAFANA.md`. I am not copying it here.
-
-The query `analytics/athena/vpd_by_day.sql` already runs in workgroup `grow-room-telemetry`. What is not on `main` yet is Grafana on k3d using that workgroup. The credential must not be an access key in `monitoring/values-k3d.yaml`.
+Done on `main`. Pull request [#80](https://github.com/TontoBlanco/grow-room-platform/pull/80) merged. Local Grafana, the one in k3d, now has **Grow-room History** (uid `grow-room-history`). It queries Athena workgroup `grow-room-telemetry` with its own read-only role, `grow-room-grafana-reader`. The shipper role stays write-only. The steps are in [Athena in Grafana](../ATHENA_GRAFANA.md). I am not repeating them here.
 
 ## 3. Grow alerts the controller cannot see
 

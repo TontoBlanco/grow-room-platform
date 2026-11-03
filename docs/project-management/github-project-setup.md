@@ -99,7 +99,7 @@ gh api --method POST repos/TontoBlanco/grow-room-platform/milestones -f title="G
 ```
 
 ```powershell
-gh api --method POST repos/TontoBlanco/grow-room-platform/milestones -f title="Roadmap: Athena in local Grafana" -f description="Not built. Workgroup grow-room-telemetry as a Grafana data source on k3d."
+gh api --method POST repos/TontoBlanco/grow-room-platform/milestones -f title="Athena in local Grafana" -f description="Merged. Pull request 80. See docs/ATHENA_GRAFANA.md. Dashboard uid grow-room-history."
 ```
 
 ```powershell

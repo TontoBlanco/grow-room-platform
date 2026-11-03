@@ -54,8 +54,11 @@ The EKS work is a different root, `infra/aws-poc`. I bring it up by phase
 with `scripts/aws-poc.ps1`, check it, and tear down the expensive resources
 before I stop. It is not a standing environment. Phases 3 through 7 are
 done. The S3, Glue, and Athena telemetry stack stays up and costs about
-1 USD per month. I am not repeating the phase write-ups here. They are on
-the [documentation site](index.md). The 1 November screenshots are in
+1 USD per month. Local Grafana reads that archive on the **Grow-room
+History** board. Pull request
+[#80](https://github.com/TontoBlanco/grow-room-platform/pull/80) merged.
+The steps are in [Athena in Grafana](ATHENA_GRAFANA.md). I am not repeating
+the phase write-ups here. They are on the [documentation site](index.md). The 1 November screenshots are in
 [aws-poc/README.md](aws-poc/README.md). The 3 November record is the
 [test session](test-session/2026-11-03.md).
 
