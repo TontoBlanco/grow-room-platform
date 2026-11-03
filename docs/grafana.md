@@ -148,7 +148,7 @@ These are the switched devices on the controller. The default set is `port_1`, `
 
 This board is uid `grow-room-history`. It is not Prometheus. Each panel sends its own query to Athena workgroup `grow-room-telemetry`, database `grow_room_telemetry`, table `readings`, in `us-west-2`. The time range defaults to 30 days. Auto-refresh is off, so opening the board does not scan Athena on a timer.
 
-Grafana uses role `grow-room-grafana-reader`. That role can query. It is not `grow-room-home-shipper`, which can only put objects. Pull request [#80](https://github.com/TontoBlanco/grow-room-platform/pull/80) merged this. The certificate, the secret, and the apply commands are in [Athena in Grafana](ATHENA_GRAFANA.md).
+Grafana uses role `grow-room-grafana-reader`. That role can query. It is not `grow-room-home-shipper`, which can only put objects. Pull request [#80](https://github.com/TontoBlanco/grow-room-platform/pull/80) added the board. Pull request [#86](https://github.com/TontoBlanco/grow-room-platform/pull/86) made the health check return OK. The plugin line is `id@version`. A `grafana.ini` change needs a Grafana restart. The plugin takes credentials from `AWS_CONTAINER_CREDENTIALS_FULL_URI`, not from an IMDS sidecar. The certificate, the secret, and the apply commands are in [Athena in Grafana](ATHENA_GRAFANA.md).
 
 Athena charges by data scanned. At one reading a minute the daily file is small, and the workgroup stops a query at 1 GB. Leaving auto-refresh off is how I keep that bill from ticking while the tab sits open.
 

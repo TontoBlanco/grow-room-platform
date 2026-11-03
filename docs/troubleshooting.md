@@ -42,6 +42,20 @@ Drill 3 on 3 November moved the primary in about 30 seconds. The usual range I s
 
 The first `up` created the topic `grow-room-poc-alerts` and no subscription, because `alert_email` was empty. Alerts were dropped. `up` now takes the address from `$env:ALERT_EMAIL`, then from `terraform.tfvars`, then from the GitHub variable `ALERT_EMAIL`. A subscription at `PendingConfirmation` still needs the inbox click. A second `up` does not send another confirmation once that click is done.
 
+## Athena plugin install format
+
+Grafana installs a plugin from `id@version`. The chart value is `grafana-athena-datasource@3.4.2` in `monitoring/values-k3d.yaml`. `grafana-athena-datasource 3.4.2`, with a space, does not install it. The datasource then has nothing to run a health check against.
+
+## A `grafana.ini` change needs a restart
+
+Grafana reads `grafana.ini` when the process starts. Argo CD updates the ConfigMap and does not, by itself, restart Grafana. After `[aws] forward_settings_to_plugins` or `allowed_auth_providers` changes, roll the `monitoring-grafana` deployment so the new file is the one the process opened. The commands are in [Athena in Grafana](ATHENA_GRAFANA.md).
+
+## Athena credentials are not IMDS
+
+The first sidecar spoke IMDSv2 on `127.0.0.1:9911`. The health check failed. Grafana 13 starts `grafana-athena-datasource` with a stripped environment and does not copy `AWS_EC2_METADATA_SERVICE_ENDPOINT` into the plugin, so that listener was never the plugin's endpoint.
+
+The sidecar now runs the Roles Anywhere helper and serves a container-credentials document at `http://127.0.0.1:9911/credentials`. The Grafana container sets `AWS_CONTAINER_CREDENTIALS_FULL_URI` to that URL. `forward_settings_to_plugins` lists `grafana-athena-datasource`, which is what copies that variable into the plugin. The AWS SDK selects the container-credentials URI before it tries EC2 IMDS. Pull request [#86](https://github.com/TontoBlanco/grow-room-platform/pull/86) is that fix. The datasource health check now returns OK. No access key is in the chart or in this page.
+
 ## Where the longer notes are
 
 | Symptom | Page |
@@ -52,3 +66,4 @@ The first `up` created the topic `grow-room-poc-alerts` and no subscription, bec
 | Drill order and `SensorDataStale` | [Phase 4](phases/phase-4-slos-and-drills.md) and [DRILLS.md](aws-poc/DRILLS.md) |
 | Signing and Kyverno | [Phase 5](phases/phase-5-supply-chain.md) |
 | The 3 November emails | [Test session](test-session/2026-11-03.md) |
+| Athena plugin, restart, and credentials | [Athena in Grafana](ATHENA_GRAFANA.md) and [Phase 3](phases/phase-3-telemetry.md) |

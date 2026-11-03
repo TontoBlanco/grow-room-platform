@@ -14,13 +14,34 @@ Grafana 13 starts `grafana-athena-datasource` with a stripped environment and
 then copies `AWS_CONTAINER_CREDENTIALS_FULL_URI` (plus the IRSA and region
 names) because the plugin id is listed in `[aws] forward_settings_to_plugins`.
 `AWS_EC2_METADATA_SERVICE_ENDPOINT` is not copied, so an IMDSv2 listener on
-`127.0.0.1:9911` never becomes the plugin's endpoint. The sidecar runs
+`127.0.0.1:9911` never becomes the plugin's endpoint. That is why the first
+health check failed. The sidecar runs
 `aws_signing_helper credential-process` and serves the ECS credential document
 (`AccessKeyID`, `SecretAccessKey`, `Token`, `Expiration`) at
 `http://127.0.0.1:9911/credentials`. The Grafana container sets
 `AWS_CONTAINER_CREDENTIALS_FULL_URI` to that URL. The SDK selects it before
 EC2 IMDS. `[plugins] forward_host_env_vars` is a list of plugin ids, and this
 chart does not set it.
+
+Three fixes landed after the first install. Pull request
+[#86](https://github.com/TontoBlanco/grow-room-platform/pull/86) is the one
+that made the datasource health check return OK.
+
+- The plugin install string is `id@version`. The value in
+  `monitoring/values-k3d.yaml` is `grafana-athena-datasource@3.4.2`. A space
+  between the id and the version does not install the plugin.
+- Grafana reads `grafana.ini` when the process starts. Argo CD can update
+  the ConfigMap and leave the old process running. A rollout restart of
+  `monitoring-grafana` is what loads `[aws] forward_settings_to_plugins`.
+- The Athena plugin does not use an IMDS sidecar. Grafana 13 does not copy
+  `AWS_EC2_METADATA_SERVICE_ENDPOINT` into the plugin. The sidecar now
+  serves a container-credentials document at
+  `http://127.0.0.1:9911/credentials`. The Grafana container sets
+  `AWS_CONTAINER_CREDENTIALS_FULL_URI` to that URL, and
+  `forward_settings_to_plugins` names `grafana-athena-datasource`, so the
+  plugin receives it. The AWS SDK uses that URI before it tries EC2 IMDS.
+
+The same notes are on the [troubleshooting page](troubleshooting.md).
 
 The board **Grow-room History** (uid `grow-room-history`) queries Glue database
 `grow_room_telemetry`, table `readings`, Athena workgroup `grow-room-telemetry`,
