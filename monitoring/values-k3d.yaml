@@ -42,24 +42,32 @@ grafana:
       searchNamespace: ALL
     datasources:
       enabled: true
-  # Amazon Athena for the Grow-room History board. The plugin uses the AWS SDK
-  # default chain. A sidecar serves IMDSv2 on 127.0.0.1:9911 from a separate
-  # Roles Anywhere cert (secret grafana-athena-identity, not in git). Without
-  # that secret the sidecar sleeps and this pod still starts. Docs: docs/ATHENA_GRAFANA.md
+  # Amazon Athena for the Grow-room History board. authType default uses the
+  # AWS SDK default chain inside grafana-athena-datasource. Grafana 13 starts
+  # that plugin without the host environment, then copies
+  # AWS_CONTAINER_CREDENTIALS_FULL_URI because the plugin id is in
+  # [aws] forward_settings_to_plugins. The sidecar serves that ECS credential
+  # document from the Roles Anywhere cert (secret grafana-athena-identity,
+  # not in git). Without that secret the sidecar sleeps and this pod still
+  # starts. Docs: docs/ATHENA_GRAFANA.md
   plugins:
-    - grafana-athena-datasource 3.4.2
+    - grafana-athena-datasource@3.4.2
   env:
     AWS_REGION: us-west-2
     AWS_DEFAULT_REGION: us-west-2
-    # No trailing slash. The SDK's IMDS client calls the sidecar in this pod.
-    AWS_EC2_METADATA_SERVICE_ENDPOINT: http://127.0.0.1:9911
-    AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE: IPv4
+    # Full URI, loopback host, no trailing slash. Grafana forwards this name
+    # to grafana-athena-datasource. The SDK selects it before EC2 IMDS.
+    AWS_CONTAINER_CREDENTIALS_FULL_URI: http://127.0.0.1:9911/credentials
+    # The credential GET uses the default HTTP client, which honors the proxy
+    # env. These two are on Grafana's permitted plugin env list.
     NO_PROXY: 127.0.0.1,localhost
     no_proxy: 127.0.0.1,localhost
   grafana.ini:
     aws:
       # Default chain only, so a pasted access key in the UI is not a second auth path.
       allowed_auth_providers: default
+      # Pin the plugin that receives AWS_CONTAINER_CREDENTIALS_FULL_URI.
+      forward_settings_to_plugins: grafana-athena-datasource
   additionalDataSources:
     - name: Amazon Athena
       uid: athena-grow-room
@@ -74,7 +82,8 @@ grafana:
         catalog: AwsDataCatalog
         database: grow_room_telemetry
         workgroup: grow-room-telemetry
-  # aws_signing_helper 1.8.5 is a glibc binary (Amzn2023). Alpine cannot run it.
+  # aws_signing_helper 1.8.5 is the Amzn2023 glibc binary. It runs in the
+  # amazonlinux sidecar, which is the only container that mounts the cert.
   # sha256 is checked before the sidecar execs the file.
   extraInitContainers:
     - name: fetch-aws-signing-helper
@@ -126,6 +135,13 @@ grafana:
     - name: athena-rolesanywhere
       image: public.ecr.aws/amazonlinux/amazonlinux:2023
       imagePullPolicy: IfNotPresent
+      env:
+        - name: HOME
+          value: /tmp
+        - name: AWS_REGION
+          value: us-west-2
+        - name: PYTHONUNBUFFERED
+          value: "1"
       command: ["/bin/bash", "-c"]
       args:
         - |
@@ -134,14 +150,149 @@ grafana:
             echo "grafana-athena-identity is not mounted; Athena will not authenticate until that secret exists"
             exec sleep infinity
           fi
-          exec /opt/rolesanywhere/aws_signing_helper serve \
-            --certificate /etc/grafana-athena/tls.crt \
-            --private-key /etc/grafana-athena/tls.key \
-            --trust-anchor-arn "$(tr -d '[:space:]' < /etc/grafana-athena/trust-anchor-arn)" \
-            --profile-arn "$(tr -d '[:space:]' < /etc/grafana-athena/profile-arn)" \
-            --role-arn "$(tr -d '[:space:]' < /etc/grafana-athena/role-arn)" \
-            --region us-west-2 \
-            --port 9911
+          exec python3 - << 'ATHENA_CONTAINER_CREDENTIALS_PY'
+          import json
+          import os
+          import subprocess
+          import sys
+          import threading
+          from datetime import datetime, timedelta, timezone
+          from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+          HELPER = os.environ.get("AWS_SIGNING_HELPER", "/opt/rolesanywhere/aws_signing_helper")
+          IDENTITY = os.environ.get("GRAFANA_ATHENA_IDENTITY", "/etc/grafana-athena")
+          PORT = int(os.environ.get("ATHENA_CREDENTIAL_PORT", "9911"))
+          REFRESH_SKEW = timedelta(minutes=5)
+          ThreadingHTTPServer.allow_reuse_address = True
+
+
+          def read_arn(name):
+              path = os.path.join(IDENTITY, name)
+              with open(path, encoding="utf-8") as handle:
+                  return "".join(handle.read().split())
+
+
+          def parse_expiration(value):
+              # Python 3.9 on Amazon Linux 2023 accepts datetime.isoformat()
+              # and rejects a trailing Z or a 3-digit fraction.
+              text = value.strip()
+              if text.endswith("Z"):
+                  text = text[:-1] + "+00:00"
+              if "." in text:
+                  head, tail = text.split(".", 1)
+                  tz = ""
+                  for sign in ("+", "-"):
+                      if sign in tail:
+                          _, offset = tail.split(sign, 1)
+                          tz = sign + offset
+                          break
+                  text = head + tz
+              parsed = datetime.fromisoformat(text)
+              if parsed.tzinfo is None:
+                  parsed = parsed.replace(tzinfo=timezone.utc)
+              return parsed
+
+
+          def to_container_credentials(payload):
+              required = ("AccessKeyId", "SecretAccessKey", "SessionToken", "Expiration")
+              missing = [key for key in required if not payload.get(key)]
+              if missing:
+                  raise ValueError("credential-process response missing " + ",".join(missing))
+              parse_expiration(payload["Expiration"])
+              return {
+                  "AccessKeyID": payload["AccessKeyId"],
+                  "SecretAccessKey": payload["SecretAccessKey"],
+                  "Token": payload["SessionToken"],
+                  "Expiration": payload["Expiration"],
+              }
+
+
+          def fetch_credentials():
+              command = [
+                  HELPER,
+                  "credential-process",
+                  "--certificate",
+                  os.path.join(IDENTITY, "tls.crt"),
+                  "--private-key",
+                  os.path.join(IDENTITY, "tls.key"),
+                  "--trust-anchor-arn",
+                  read_arn("trust-anchor-arn"),
+                  "--profile-arn",
+                  read_arn("profile-arn"),
+                  "--role-arn",
+                  read_arn("role-arn"),
+                  "--region",
+                  os.environ.get("AWS_REGION", "us-west-2"),
+              ]
+              completed = subprocess.run(command, capture_output=True, text=True, check=False)
+              if completed.returncode != 0:
+                  lines = (completed.stderr or "credential-process failed").strip().splitlines()
+                  detail = lines[-1][:300] if lines else "credential-process failed"
+                  raise RuntimeError(detail)
+              try:
+                  payload = json.loads(completed.stdout)
+              except json.JSONDecodeError:
+                  raise RuntimeError("credential-process did not return JSON") from None
+              return to_container_credentials(payload)
+
+
+          class _Cache:
+              def __init__(self):
+                  self._lock = threading.Lock()
+                  self._body = None
+                  self._refresh_by = None
+
+              def get(self):
+                  with self._lock:
+                      now = datetime.now(timezone.utc)
+                      if self._body is not None and self._refresh_by is not None and now < self._refresh_by:
+                          return self._body
+                      body = fetch_credentials()
+                      self._body = body
+                      self._refresh_by = parse_expiration(body["Expiration"]) - REFRESH_SKEW
+                      return body
+
+
+          CACHE = _Cache()
+
+
+          class Handler(BaseHTTPRequestHandler):
+              protocol_version = "HTTP/1.1"
+
+              def do_GET(self):
+                  path = self.path.split("?", 1)[0]
+                  if path != "/credentials":
+                      self._json(404, {"code": "NotFound", "message": "not found"})
+                      return
+                  try:
+                      body = CACHE.get()
+                  except Exception as exc:
+                      self._json(500, {"code": "CredentialProcessFailed", "message": str(exc)})
+                      return
+                  self._json(200, body)
+
+              def _json(self, status, payload):
+                  raw = json.dumps(payload).encode("utf-8")
+                  self.send_response(status)
+                  self.send_header("Content-Type", "application/json")
+                  self.send_header("Content-Length", str(len(raw)))
+                  self.end_headers()
+                  self.wfile.write(raw)
+
+              def log_message(self, fmt, *args):
+                  sys.stderr.write("athena-credentials " + (fmt % args) + "\n")
+
+
+          def main():
+              server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+              host, port = server.server_address
+              print("container credentials listening on http://%s:%s/credentials" % (host, port), flush=True)
+              server.serve_forever()
+
+
+          if __name__ == "__main__":
+              main()
+          ATHENA_CONTAINER_CREDENTIALS_PY
       volumeMounts:
         - name: aws-signing-helper
           mountPath: /opt/rolesanywhere
@@ -162,7 +313,7 @@ grafana:
           memory: 32Mi
         limits:
           cpu: 200m
-          memory: 128Mi
+          memory: 256Mi
   extraContainerVolumes:
     - name: aws-signing-helper
       emptyDir: {}

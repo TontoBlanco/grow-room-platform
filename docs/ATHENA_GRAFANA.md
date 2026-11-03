@@ -4,8 +4,23 @@ Local Grafana is the Grafana from kube-prometheus-stack in the k3d cluster
 `grow-room-dev`, release `monitoring`, namespace `monitoring`. Docker Compose
 does not run Grafana. `docker-compose.yml` is sensor-service and Home Assistant
 only. The values file is `monitoring/values-k3d.yaml` (chart
-`kube-prometheus-stack` `92.13.1`). The EKS app layers that same file; without
-the secret below, the credential sidecar sleeps and the pod still starts.
+`kube-prometheus-stack` `92.13.1`, Grafana `13.2.4`). The EKS app layers
+that same file; without the secret below, the credential sidecar sleeps and
+the pod still starts.
+
+The datasource uid `athena-grow-room` uses auth type `default`. That path is
+grafana-aws-sdk `LoadDefaultConfig`, the AWS SDK for Go v2 default chain.
+Grafana 13 starts `grafana-athena-datasource` with a stripped environment and
+then copies `AWS_CONTAINER_CREDENTIALS_FULL_URI` (plus the IRSA and region
+names) because the plugin id is listed in `[aws] forward_settings_to_plugins`.
+`AWS_EC2_METADATA_SERVICE_ENDPOINT` is not copied, so an IMDSv2 listener on
+`127.0.0.1:9911` never becomes the plugin's endpoint. The sidecar runs
+`aws_signing_helper credential-process` and serves the ECS credential document
+(`AccessKeyID`, `SecretAccessKey`, `Token`, `Expiration`) at
+`http://127.0.0.1:9911/credentials`. The Grafana container sets
+`AWS_CONTAINER_CREDENTIALS_FULL_URI` to that URL. The SDK selects it before
+EC2 IMDS. `[plugins] forward_host_env_vars` is a list of plugin ids, and this
+chart does not set it.
 
 The board **Grow-room History** (uid `grow-room-history`) queries Glue database
 `grow_room_telemetry`, table `readings`, Athena workgroup `grow-room-telemetry`,
@@ -124,9 +139,12 @@ terraform -chdir=infra/telemetry output -raw grafana_role_arn
 
 The CN must be `grow-room-grafana-reader`. The shipper cert
 (`grow-room-home-shipper`) cannot assume this role. OpenSSL 3 signs with the
-CA key `C:\src\grow-room-pki\ca.key` (the private key that matches `ca.pem`).
-The key, CSR, and cert stay under `C:\src\grow-room-pki`. Do not copy them
-into the repo.
+CA key that matches `ca.pem`. The commands below use
+`C:\src\grow-room-pki\ca.key` when the key sits next to the cert. The CA key
+may live on a separate drive; point `-CAkey` at that file. The leaf can be
+`grafana-reader.crt` or `grafana-reader.pem`. The Secret key is `tls.crt`
+either way. The key, CSR, and cert stay under `C:\src\grow-room-pki`. Do not
+copy them into the repo.
 
 PowerShell uses the Git for Windows OpenSSL.
 
@@ -180,6 +198,9 @@ terraform -chdir=infra/telemetry output -raw grafana_profile_arn | Set-Content -
 terraform -chdir=infra/telemetry output -raw grafana_role_arn | Set-Content -NoNewline -Encoding ascii C:\src\grow-room-pki\grafana-role-arn
 ```
 
+`--from-file=tls.crt=` accepts `grafana-reader.crt` or `grafana-reader.pem`.
+The key stored in the Secret stays `tls.crt`.
+
 ```powershell
 kubectl -n monitoring create secret generic grafana-athena-identity --from-file=tls.crt=C:\src\grow-room-pki\grafana-reader.crt --from-file=tls.key=C:\src\grow-room-pki\grafana-reader.key --from-file=trust-anchor-arn=C:\src\grow-room-pki\grafana-trust-anchor-arn --from-file=profile-arn=C:\src\grow-room-pki\grafana-profile-arn --from-file=role-arn=C:\src\grow-room-pki\grafana-role-arn --dry-run=client -o yaml | Set-Content -Encoding ascii C:\src\grow-room-pki\grafana-athena-identity.yaml
 ```
@@ -215,11 +236,11 @@ Argo itself applied.
 
 ## 4. Upgrade the monitoring release
 
-Create the secret before this upgrade. The pod mounts it as optional, reads
-the cert only in the `athena-rolesanywhere` sidecar, and serves IMDSv2 at
-`http://127.0.0.1:9911`. Grafana's Athena plugin uses auth type `default` and
-`AWS_EC2_METADATA_SERVICE_ENDPOINT`. The chart
-installs `grafana-athena-datasource 3.4.2`. The first start also downloads
+Create the secret before this upgrade. The pod mounts it as optional. The
+cert is read only in the `athena-rolesanywhere` sidecar, which serves
+`http://127.0.0.1:9911/credentials`. Grafana's Athena plugin uses auth type
+`default` and `AWS_CONTAINER_CREDENTIALS_FULL_URI`. The chart installs
+`grafana-athena-datasource@3.4.2`. The first start also downloads
 `aws_signing_helper` 1.8.5 (sha256-checked) and that plugin, so the rollout
 can sit at 0/1 for a few minutes. The machine needs
 egress to `public.ecr.aws`, `rolesanywhere.amazonaws.com`, and `grafana.com`.
@@ -282,20 +303,61 @@ kubectl -n argocd annotate application monitoring argocd.argoproj.io/refresh=har
 ```
 
 The secret still has to exist before that rollout. If you created the secret
-after the pod started, restart Grafana so the volume is mounted:
+after the pod started, restart Grafana so the volume is mounted.
+
+`grafana.ini` is mounted from a ConfigMap. Changing it, including `[aws]
+forward_settings_to_plugins` or `allowed_auth_providers`, needs a restart.
+Argo only updates the ConfigMap. Grafana reads `grafana.ini` at process start.
+
+After this change is on `main`, sync from that revision, then restart so the
+new ConfigMap and `AWS_CONTAINER_CREDENTIALS_FULL_URI` are what the process
+starts with. One command per block. The port-forward stays open; run the
+health curl in a second window. `"status":"OK"` is the auth check.
+
+```powershell
+kubectl config use-context k3d-grow-room-dev
+```
+
+```powershell
+Set-Content -Encoding ascii "$env:TEMP\monitoring-refresh.json" '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+```
+
+```powershell
+kubectl -n argocd patch application monitoring --type merge --patch-file "$env:TEMP\monitoring-refresh.json"
+```
+
+```powershell
+kubectl -n argocd get application monitoring
+```
+
+Wait until the Deployment spec contains the container credential URI, then
+restart. The restart is what loads `grafana.ini`. Argo only updates the
+ConfigMap.
+
+```powershell
+$synced = $false; for ($i = 0; $i -lt 36; $i++) { $spec = kubectl -n monitoring get deploy monitoring-grafana -o yaml; if ($spec -match 'AWS_CONTAINER_CREDENTIALS_FULL_URI') { $synced = $true; break }; Start-Sleep -Seconds 5 }; if (-not $synced) { throw 'monitoring-grafana does not have AWS_CONTAINER_CREDENTIALS_FULL_URI yet' }
+```
 
 ```powershell
 kubectl -n monitoring rollout restart deploy/monitoring-grafana
+```
+
+```powershell
+kubectl -n monitoring rollout status deploy/monitoring-grafana
 ```
 
 ```bash
 kubectl -n monitoring rollout restart deploy/monitoring-grafana
 ```
 
+```bash
+kubectl -n monitoring rollout status deploy/monitoring-grafana
+```
+
 ## 5. Verify the panel loads
 
 The init container should print the helper version. The sidecar should log
-`Starting server on port 9911`.
+`container credentials listening on http://127.0.0.1:9911/credentials`.
 
 ```powershell
 kubectl -n monitoring logs deploy/monitoring-grafana -c fetch-aws-signing-helper

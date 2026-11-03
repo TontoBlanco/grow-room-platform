@@ -30,9 +30,24 @@ jobs:
           helm pull prometheus-community/kube-prometheus-stack --version 92.13.1 --untar --untardir "$tmp"
           helm lint "$tmp/kube-prometheus-stack" -n monitoring -f monitoring/values-k3d.yaml
           helm template monitoring "$tmp/kube-prometheus-stack" -n monitoring -f monitoring/values-k3d.yaml >/tmp/monitoring-rendered.yaml
-          grep -q 'grafana-athena-datasource 3.4.2' /tmp/monitoring-rendered.yaml
+          grep -q 'grafana-athena-datasource@3.4.2' /tmp/monitoring-rendered.yaml
           grep -q 'uid: athena-grow-room' /tmp/monitoring-rendered.yaml
           grep -q 'athena-rolesanywhere' /tmp/monitoring-rendered.yaml
+          grep -q 'AWS_CONTAINER_CREDENTIALS_FULL_URI: http://127.0.0.1:9911/credentials' monitoring/values-k3d.yaml
+          grep -q 'forward_settings_to_plugins: grafana-athena-datasource' monitoring/values-k3d.yaml
+          grep -q 'credential-process' monitoring/values-k3d.yaml
+          grep -q 'AWS_CONTAINER_CREDENTIALS_FULL_URI' /tmp/monitoring-rendered.yaml
+          grep -q 'http://127.0.0.1:9911/credentials' /tmp/monitoring-rendered.yaml
+          grep -q 'credential-process' /tmp/monitoring-rendered.yaml
+          grep -q 'forward_settings_to_plugins' /tmp/monitoring-rendered.yaml
+          if grep -q 'forward_host_env_vars' monitoring/values-k3d.yaml /tmp/monitoring-rendered.yaml; then
+            echo "forward_host_env_vars lists plugin ids and is not how this chain is wired" >&2
+            exit 1
+          fi
+          if grep -q 'AWS_EC2_METADATA_SERVICE_ENDPOINT' monitoring/values-k3d.yaml /tmp/monitoring-rendered.yaml; then
+            echo "Grafana does not copy AWS_EC2_METADATA_SERVICE_ENDPOINT into the Athena plugin" >&2
+            exit 1
+          fi
 
   lint:
     runs-on: ubuntu-latest
