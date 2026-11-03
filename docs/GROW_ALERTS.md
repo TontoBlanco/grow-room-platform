@@ -2,7 +2,7 @@
 
 These are email alerts for problems the AC Infinity app does not already show on a phone. The app notifies you about basic temperature and humidity. None of the four alerts below repeat that.
 
-Each alert has its own on/off switch. All four are **off**. An off switch does not create the Kubernetes object for that alert. The switches live in `charts/grow-alerts/values.yaml`. Argo CD applies that chart as the app `grow-alerts` on the k3d context `k3d-grow-room-dev`, namespace `monitoring`.
+Each alert has its own on/off switch. An off switch does not create the Kubernetes object for that alert. The chart defaults in `charts/grow-alerts/values.yaml` keep all four **off**. CI renders that file alone and expects an empty release. The k3d lab does not edit those defaults. It layers `charts/grow-alerts/values-k3d.yaml`, which turns probe drift on and leaves the other three off. Argo CD app `grow-alerts` loads both files, the same way the monitoring app loads `monitoring/values-k3d.yaml`, on context `k3d-grow-room-dev`, namespace `monitoring`.
 
 | Alert | Switch | What it watches |
 | --- | --- | --- |
@@ -107,7 +107,9 @@ docker compose up -d --build sensor-service
 
 ## Turn one alert on
 
-Argo CD will put the git value back if you only change the live cluster. Change the file, commit, and let Argo sync. This example turns on probe drift and leaves the other three off.
+Leave `charts/grow-alerts/values.yaml` all off. That file is the chart default, and CI fails if any switch there is true. The lab switches are in `charts/grow-alerts/values-k3d.yaml`. Probe drift is already true there. To turn another alert on, set that alert's `enabled` flag in the overlay and leave the others false.
+
+Argo CD will put a live-only change back. Commit the overlay and let the `grow-alerts` app sync.
 
 From `C:\src\grow-room-platform`:
 
@@ -119,8 +121,6 @@ Set-Location C:\src\grow-room-platform
 kubectl config use-context k3d-grow-room-dev
 ```
 
-Set `alerts.probeDrift.enabled` to `true` in `charts\grow-alerts\values.yaml`. Then:
-
 ```powershell
 Set-Content -Encoding ascii -Path "$env:TEMP\grow-alerts-refresh.json" -Value '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
@@ -129,19 +129,35 @@ Set-Content -Encoding ascii -Path "$env:TEMP\grow-alerts-refresh.json" -Value '{
 kubectl -n argocd patch application grow-alerts --type merge --patch-file "$env:TEMP\grow-alerts-refresh.json"
 ```
 
-To see the objects without applying them, quote the dotted `--set` value:
+Render the same two files the app uses. The k3d overlay should show one `PrometheusRule` named `grow-probe-drift` and no CronJob:
 
 ```powershell
-helm template grow-alerts charts/grow-alerts -n monitoring --set "alerts.probeDrift.enabled=true"
+helm template grow-alerts charts/grow-alerts -n monitoring -f charts/grow-alerts/values.yaml -f charts/grow-alerts/values-k3d.yaml
 ```
 
-A one-shot install also works, and Argo will revert it on the next sync:
+A one-shot install uses those files too. Argo will revert it on the next sync if git differs:
 
 ```powershell
-helm upgrade --install grow-alerts charts/grow-alerts -n monitoring --create-namespace --set "alerts.probeDrift.enabled=true"
+helm upgrade --install grow-alerts charts/grow-alerts -n monitoring --create-namespace -f charts/grow-alerts/values.yaml -f charts/grow-alerts/values-k3d.yaml
 ```
 
 The shipper and VPD jobs need secret `grafana-athena-identity` in namespace `monitoring` before they can succeed. The certificate job does not.
+
+## Confirm GrowProbeDrift is loaded
+
+After the `grow-alerts` app is Synced, Prometheus should list the rule even when it is not firing. Leave the port-forward open:
+
+```powershell
+kubectl -n monitoring port-forward svc/monitoring-prometheus 9090:9090
+```
+
+In a second window:
+
+```powershell
+$rules = Invoke-RestMethod -Uri "http://127.0.0.1:9090/api/v1/rules?type=alert"; $rules.data.groups.rules | Where-Object name -eq GrowProbeDrift | Select-Object name, state, query
+```
+
+The UI for the same list is [http://127.0.0.1:9090/alerts](http://127.0.0.1:9090/alerts). `GrowProbeDrift` is loaded when it appears there. `inactive` means the rule is loaded and the difference is not over 0.15 kPa right now. The series exists only after the Compose sensor-service is rebuilt, because that process exports `grow_probe_calculated_vpd_kpa`.
 
 ## Turn mail on
 
@@ -151,7 +167,7 @@ Create the SMTP secret on the cluster. The password stays in that secret.
 kubectl -n monitoring create secret generic grow-alerts-smtp --from-literal=password="replace-me"
 ```
 
-Then set these in `charts/grow-alerts/values.yaml` and sync the same way as a toggle:
+Then set these in `charts/grow-alerts/values-k3d.yaml` and sync the `grow-alerts` app the same way as a toggle. Leave the chart defaults in `values.yaml` alone:
 
 ```yaml
 delivery:
