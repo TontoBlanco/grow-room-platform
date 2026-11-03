@@ -23,6 +23,10 @@ EXPORTED = {
     "grow_probe_vpd_kpa",
     "grow_port_current_power",
     "grow_port_status",
+    "grow_room_stage_info",
+    "grow_vpd_target_low_kpa",
+    "grow_vpd_target_high_kpa",
+    "grow_vpd_in_target_band",
     "up",
 }
 
@@ -279,6 +283,34 @@ def test_homeassistant_aggregation_drops_simulator_pod_history():
     ]
     collapsed = _series_after_max_by(ports, ("device",), {"sensor_source": "homeassistant"})
     assert sorted(sample["device"] for sample in collapsed) == ["humidifier", "port_1"]
+
+
+def test_stage_target_panels_follow_the_gauges():
+    """Band lines and the in-band stat come from metrics, not baked-in kPa cuts."""
+    panels = {panel["id"]: panel for panel in _dashboard()["panels"]}
+    assert panels[24]["type"] == "row"
+    assert panels[24]["title"] == "Growth stage VPD target"
+    assert panels[25]["targets"][0]["expr"] == "max by (job, stage) (grow_room_stage_info)"
+    assert panels[25]["targets"][0]["legendFormat"] == "{{job}} {{stage}}"
+    assert panels[26]["targets"][0]["expr"] == "max by (job) (grow_vpd_in_target_band)"
+    mapping = panels[26]["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert mapping["1"]["text"] == "IN"
+    assert mapping["0"]["text"] == "OUT"
+    assert panels[27]["targets"][0]["expr"] == "max by (job) (grow_vpd_target_low_kpa)"
+    assert panels[28]["targets"][0]["expr"] == "max by (job) (grow_vpd_target_high_kpa)"
+    assert [target["expr"] for target in panels[29]["targets"]] == [
+        "max by (job) (grow_vpd_kpa)",
+        "max by (job) (grow_vpd_target_low_kpa)",
+        "max by (job) (grow_vpd_target_high_kpa)",
+    ]
+    for target in panels[29]["targets"]:
+        assert not re.search(r"\d", target["expr"])
+    # Directly under the port charts, which end at y=60.
+    assert panels[22]["gridPos"]["y"] + panels[22]["gridPos"]["h"] == panels[24]["gridPos"]["y"]
+    assert "grow_vpd_target_low_kpa" in panels[30]["options"]["content"]
+    assert "hard-coded" in panels[30]["options"]["content"].lower() or "not a number baked" in (
+        panels[30]["options"]["content"].lower()
+    )
 
 
 def test_panels_do_not_overlap():

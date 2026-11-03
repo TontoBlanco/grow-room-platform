@@ -153,5 +153,12 @@ resource "aws_glue_catalog_table" "readings" {
       name = "source"
       type = "string"
     }
+    # Optional. ship_readings adds it when /readings includes growth_stage.
+    # Older objects omit it; Athena returns null. Queries that do not select
+    # stage keep the same columns.
+    columns {
+      name = "stage"
+      type = "string"
+    }
   }
 }

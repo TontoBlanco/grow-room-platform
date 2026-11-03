@@ -176,8 +176,9 @@ not stored in the Helm values or monitoring configuration.
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /healthz` | Health check |
-| `GET /readings` | Temperature (°C/°F), humidity, computed VPD (kPa), optional CO2, controller/probe details, and device ports |
+| `GET /readings` | Temperature (°C/°F), humidity, computed VPD (kPa), optional CO2, controller/probe details, device ports, and the growth-stage VPD target |
 | `GET /mood` | Playful plant mood from the current leaf VPD (soft heuristic, not agronomy advice) |
+| `GET /stage` | Configured growth stage and its leaf-VPD target band (no sensor read) |
 | `GET /metrics` | Prometheus metrics |
 | `GET /docs` | FastAPI OpenAPI documentation |
 | `/audit/...` | Batches, plants, state changes, event history, and integrity checks |
@@ -190,8 +191,17 @@ as `vpd_raw` and `vpd_unit`.
 
 Prometheus always has the simulator's climate gauges, including
 `grow_temperature_celsius`, `grow_vpd_kpa`, and `grow_room_plant_mood`
-(labeled by `band`; see below). Additional controller, probe, and port gauges
-are created only after a successful Home Assistant sample:
+(labeled by `band`; see below). The growth stage is config, so these are
+present even when a sensor read fails:
+
+- `grow_room_stage_info` (value 1; `stage` is the setting, `display` is the name)
+- `grow_vpd_target_low_kpa`, `grow_vpd_target_high_kpa`
+
+`grow_vpd_in_target_band` is 1 when computed leaf VPD is inside that inclusive
+band and 0 when it is outside. It appears after a successful reading.
+
+Additional controller, probe, and port gauges are created only after a
+successful Home Assistant sample:
 
 - `grow_probe_temperature_celsius`, `grow_probe_humidity_percent`, `grow_probe_vpd_kpa`
 - `grow_controller_vpd_kpa`, `grow_controller_status`
@@ -221,6 +231,111 @@ flower), and not a control signal.
 Soup and crispy are both stressful, and they stay separate bands so the
 Prometheus label does not hide which problem it is. The Grow-room VPD
 dashboard has a Plant mood stat under the CO₂ panel, one tile per scrape job.
+
+### Growth stage
+
+`GROW_STAGE` is one tent-wide stage. It is separate from plant mood. Mood is
+a mixed-tent heuristic. The stage selects the leaf-VPD target the dashboard
+draws.
+
+| `GROW_STAGE` | Also accepted | Leaf VPD target (kPa) |
+|--------------|---------------|------------------------|
+| `seedling` | `clone` | 0.4–0.8 |
+| `veg` (default) | `vegetative` | 0.8–1.2 |
+| `flower` | `flowering` | 1.2–1.5 |
+| `late_flower` | `late-flower`, `late flower` | 1.4–1.6 |
+
+Edges are inclusive, so 0.8 kPa is in band for both seedling and veg. Only
+the selected stage is active. `clone` is stored as `seedling`.
+
+These are a cannabis-tent rule of thumb, not a cultivar prescription. They
+follow the ranges commonly printed on cannabis VPD charts: Pulse Grow's
+propagation band (about 0.4–0.8 kPa) and vegetative band (about 0.8–1.2 kPa),
+the flower step many of those charts use (about 1.2–1.5 kPa), and the drier
+late-flower step (about 1.4–1.6 kPa) used to ease botrytis pressure.
+`GET /stage` returns that note with the active numbers.
+
+Override a stage without changing the name:
+
+```bash
+# flower band only, low,high in kPa
+VPD_BAND_FLOWER=1.15,1.45
+# or just the active stage's edges
+VPD_TARGET_LOW_KPA=1.15
+VPD_TARGET_HIGH_KPA=1.45
+```
+
+The same keys go in Helm `env`. A blank value is ignored. A low that is not
+below the high, or a number outside 0–10 kPa, stops the process at startup.
+
+Grafana's Grow-room VPD dashboard has a **Growth stage VPD target** row.
+Stage, the low and high lines, and the IN/OUT stat all come from
+`grow_room_stage_info`, `grow_vpd_target_low_kpa`, `grow_vpd_target_high_kpa`,
+and `grow_vpd_in_target_band`. The lines move when the stage changes. The
+colors on the top VPD stat are a fixed display scale, not this band.
+
+`scripts/ship_readings.py` adds `stage` to each S3 JSON Lines row when
+`/readings` includes `growth_stage`. Older objects omit it. The Glue tables
+in `infra/telemetry` and `infra/aws-poc` have an optional `stage` string
+column, so existing queries that do not select it stay the same and Athena
+returns null for old objects. Nothing in this change sends email.
+
+#### Change the stage on k3d
+
+From a checkout, the Helm smoke-test release is `sensor`:
+
+```bash
+helm upgrade --install sensor ./charts/sensor-service -n grow-room --create-namespace \
+  -f charts/sensor-service/values.yaml -f charts/sensor-service/values-k3d.yaml \
+  --set env.GROW_STAGE=flower
+```
+
+Use `seedling`, `veg`, `flower`, or `late_flower`. `clone` is accepted and
+reported as `seedling`.
+
+The Argo CD app (`gitops/apps/sensor-service.yaml`) self-heals from Git, and
+its Helm release name is `sensor-service`, not `sensor`. A `--set` on a
+release Argo owns is reverted on the next sync. To keep the stage on that
+cluster, set `env.GROW_STAGE` in `charts/sensor-service/values-k3d.yaml` and
+sync. Until that sync, this updates the running Argo deployment:
+
+```bash
+kubectl -n grow-room set env deployment/sensor-service GROW_STAGE=flower
+```
+
+#### Change the stage in values
+
+| File | Who reads it |
+|------|----------------|
+| `charts/sensor-service/values.yaml` | Chart default (`veg`) for every install |
+| `charts/sensor-service/values-k3d.yaml` | k3d Argo app and the Helm command above |
+| `charts/sensor-service/values-eks.yaml` | aws-poc Argo app (`gitops/eks/sensor-service.yaml`) |
+
+```yaml
+env:
+  GROW_STAGE: flower
+```
+
+Helm merges `env`, so a values file only needs the keys it changes.
+
+#### Change the stage on Docker Compose
+
+The Home Assistant stack reads the same variable. Recreate the container
+after changing it (the process reads the environment at startup):
+
+```bash
+GROW_STAGE=flower docker compose up -d sensor-service
+```
+
+Or set `GROW_STAGE` in `.env` and run that command without the prefix.
+
+Check either install with `GET /stage` (for the Helm release `sensor`, the
+Service is `sensor-sensor-service`; for Argo it is `sensor-service`):
+
+```bash
+kubectl -n grow-room port-forward svc/sensor-service 8000:8000
+curl -s localhost:8000/stage
+```
 
 ## Run the Kubernetes lab
 

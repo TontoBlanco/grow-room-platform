@@ -1,5 +1,8 @@
 -- analytics/athena/vpd_by_day.sql
--- Daily VPD summary. Band 0.8-1.2 kPa = veg; use 1.2-1.5 for flower.
+-- Daily VPD summary. The 0.8-1.2 kPa band is the veg default and stays
+-- fixed so this query remains comparable. Shipped rows may also include
+-- `stage` (seedling, veg, flower, late_flower). Older objects leave it
+-- null. This query does not select stage.
 SELECT dt,
        count(*)                                                        AS samples,
        round(avg(vpd_kpa), 2)                                          AS avg_vpd,

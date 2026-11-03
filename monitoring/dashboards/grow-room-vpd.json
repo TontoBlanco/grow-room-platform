@@ -246,7 +246,7 @@
         "colorMode": "value",
         "graphMode": "area"
       },
-      "description": "Leaf VPD computed by sensor-service (`grow_vpd_kpa`) from air temperature, humidity, and LEAF_TEMP_OFFSET_C. The controller's own reading is `grow_controller_vpd_kpa` below."
+      "description": "Leaf VPD computed by sensor-service (`grow_vpd_kpa`) from air temperature, humidity, and LEAF_TEMP_OFFSET_C. The controller's own reading is `grow_controller_vpd_kpa` below. Colors on this stat are a fixed display scale. The growth-stage target band is the row at the bottom and comes from `grow_vpd_target_low_kpa` / `grow_vpd_target_high_kpa`."
     },
     {
       "type": "timeseries",
@@ -1268,6 +1268,344 @@
           "mode": "multi"
         }
       }
+    },
+    {
+      "type": "row",
+      "title": "Growth stage VPD target",
+      "id": 24,
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Growth stage",
+      "id": 25,
+      "description": "Configured stage from the info metric `grow_room_stage_info`. The sample value is always 1. The legend is the scrape job and the `stage` label (`GROW_STAGE`; clone is reported as seedling).",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 61
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "max by (job, stage) (grow_room_stage_info)",
+          "legendFormat": "{{job}} {{stage}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no sample",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "VPD in band",
+      "id": 26,
+      "description": "1 when computed leaf VPD is inside the inclusive stage band (`grow_vpd_in_target_band`), else 0. The gauge is missing until a reading succeeds. This is not a hard-coded 0.8-1.2 cut.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 61
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "max by (job) (grow_vpd_in_target_band)",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no sample",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OUT",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "IN",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Target low kPa",
+      "id": 27,
+      "description": "Lower edge of the active stage band (`grow_vpd_target_low_kpa`). Inclusive.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 61
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "max by (job) (grow_vpd_target_low_kpa)",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no sample",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "pressurekpa",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Target high kPa",
+      "id": 28,
+      "description": "Upper edge of the active stage band (`grow_vpd_target_high_kpa`). Inclusive.",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 61
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "max by (job) (grow_vpd_target_high_kpa)",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no sample",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "pressurekpa",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "VPD vs stage target",
+      "id": 29,
+      "description": "Computed leaf VPD with the stage band drawn from `grow_vpd_target_low_kpa` and `grow_vpd_target_high_kpa`. The lines move when GROW_STAGE or a band override changes. They are not hard-coded thresholds.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 65
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "max by (job) (grow_vpd_kpa)",
+          "legendFormat": "VPD {{job}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (job) (grow_vpd_target_low_kpa)",
+          "legendFormat": "target low {{job}}",
+          "refId": "B"
+        },
+        {
+          "expr": "max by (job) (grow_vpd_target_high_kpa)",
+          "legendFormat": "target high {{job}}",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pressurekpa",
+          "decimals": 3,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/target (low|high)/"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    8,
+                    8
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "text",
+      "title": "How the target band is chosen",
+      "id": 30,
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 73
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "The target band is the configured growth stage (`GROW_STAGE`, default veg), not a number baked into this dashboard.\n\n- **Growth stage** reads `grow_room_stage_info` (the `stage` label).\n- **Target low / high** are `grow_vpd_target_low_kpa` and `grow_vpd_target_high_kpa`.\n- **In band** is `grow_vpd_in_target_band`: 1 when computed leaf VPD is inside the inclusive band, else 0.\n- The chart draws leaf VPD between those two gauges. Change the stage and the lines move.\n\nDefault bands (kPa), a cannabis-tent rule of thumb: seedling/clone 0.4-0.8, veg 0.8-1.2, flower 1.2-1.5, late flower 1.4-1.6. Plant mood above is a separate mixed-tent heuristic, not this target."
+      }
     }
   ],
   "refresh": "30s",
@@ -1290,6 +1628,6 @@
   "timezone": "browser",
   "title": "Grow-room VPD",
   "uid": "grow-room-vpd",
-  "version": 4,
-  "description": "Controller air, computed leaf VPD, probe canopy, and UIS port power/status from sensor-service, plus a plant-mood stat from the leaf-VPD heuristic. The controller, probe, and port section reads the Home Assistant scrape (`sensor_source=\"homeassistant\"`) so each chart has one series per line. Those gauges appear after a Home Assistant sample."
+  "version": 5,
+  "description": "Controller air, computed leaf VPD, probe canopy, and UIS port power/status from sensor-service, plus a plant-mood stat from the leaf-VPD heuristic. The controller, probe, and port section reads the Home Assistant scrape (`sensor_source=\"homeassistant\"`) so each chart has one series per line. Those gauges appear after a Home Assistant sample. The growth-stage target row reads `grow_room_stage_info` and the VPD target gauges."
 }
