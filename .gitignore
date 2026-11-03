@@ -32,5 +32,9 @@ grafana-reader.crt
 grafana-reader.csr
 grafana-athena-identity.yaml
 
+# Leaf certificates and private keys stay in C:\src\grow-room-pki.
+*.pem
+*.key
+
 # MkDocs build output. The site is published by GitHub Pages.
 /site/

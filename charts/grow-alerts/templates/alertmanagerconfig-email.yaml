@@ -1,0 +1,43 @@
+{{- if .Values.delivery.email.enabled }}
+{{- $email := .Values.delivery.email }}
+{{- if not $email.to }}{{ fail "delivery.email.to is required when email is enabled" }}{{ end }}
+{{- if not $email.from }}{{ fail "delivery.email.from is required when email is enabled" }}{{ end }}
+{{- if not $email.smarthost }}{{ fail "delivery.email.smarthost is required when email is enabled" }}{{ end }}
+{{- if not $email.authUsername }}{{ fail "delivery.email.authUsername is required when email is enabled" }}{{ end }}
+{{- if not $email.existingSecret }}{{ fail "delivery.email.existingSecret is required when email is enabled" }}{{ end }}
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: grow-alerts-email
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grow-alerts.labels" . | nindent 4 }}
+    release: {{ .Values.prometheus.releaseLabel | quote }}
+spec:
+  route:
+    receiver: grow-alerts-email
+    matchers:
+      - name: grow_alert
+        value: "true"
+        matchType: "="
+      - name: namespace
+        value: {{ .Release.Namespace | quote }}
+        matchType: "="
+    groupBy:
+      - alertname
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+  receivers:
+    - name: grow-alerts-email
+      emailConfigs:
+        - to: {{ $email.to | quote }}
+          from: {{ $email.from | quote }}
+          smarthost: {{ $email.smarthost | quote }}
+          authUsername: {{ $email.authUsername | quote }}
+          requireTLS: true
+          sendResolved: true
+          authPassword:
+            name: {{ $email.existingSecret }}
+            key: {{ $email.secretKey | quote }}
+{{- end }}

@@ -231,6 +231,7 @@ Additional controller, probe, and port gauges are created only after a
 successful Home Assistant sample:
 
 - `grow_probe_temperature_celsius`, `grow_probe_humidity_percent`, `grow_probe_vpd_kpa`
+- `grow_probe_calculated_vpd_kpa` (air VPD from the probe's temperature and humidity, no leaf offset)
 - `grow_controller_vpd_kpa`, `grow_controller_status`
 - `grow_port_current_power`, `grow_port_status` (labeled by device)
 

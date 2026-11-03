@@ -1,5 +1,6 @@
 import re
 
+import pytest
 from fastapi.testclient import TestClient
 
 from sensor_service.main import create_app
@@ -7,11 +8,19 @@ from sensor_service.models import DeviceReading, ProbeReading, Reading
 from sensor_service.mood import BANDS, HEURISTIC_NOTE
 from sensor_service.sources import SimulatorSource
 from sensor_service.stage import load_growth_stage
+from sensor_service.vpd import vpd_kpa
 
 
 class BrokenSource:
     def read(self) -> Reading:
         raise RuntimeError("controller offline")
+
+
+def _gauge(text: str, name: str) -> float:
+    for line in text.splitlines():
+        if line.startswith(name + " "):
+            return float(line.split()[-1])
+    raise AssertionError(f"{name} not in metrics")
 
 
 def client(source=None, growth_stage=None):
@@ -221,9 +230,42 @@ def test_readings_and_metrics_include_probe_and_ports():
     assert "grow_probe_temperature_celsius" in body
     assert "grow_probe_humidity_percent" in body
     assert "grow_probe_vpd_kpa" in body
+    # Calculated from the probe's own temp/RH with no leaf offset.
+    assert _gauge(body, "grow_probe_calculated_vpd_kpa") == pytest.approx(vpd_kpa(24.0, 64.0, 0.0))
     assert "grow_controller_vpd_kpa" in body
     assert "grow_controller_status" in body
     assert 'grow_port_current_power{device="port_1"}' in body
     assert 'grow_port_current_power{device="humidifier"}' in body
     assert 'grow_port_status{device="port_1"}' in body
     assert 'grow_port_status{device="humidifier"}' in body
+
+
+def test_probe_calculated_vpd_ignores_leaf_offset():
+    reading = Reading(
+        temperature_c=25.0,
+        humidity_percent=60.0,
+        source="homeassistant",
+        controller_vpd_kpa=1.2,
+        probe=ProbeReading(temperature_c=24.0, humidity_percent=64.0),
+    )
+    http = TestClient(
+        create_app(
+            StaticSource(reading),
+            leaf_offset=-2.0,
+            growth_stage=load_growth_stage({}),
+        )
+    )
+    value = _gauge(http.get("/metrics").text, "grow_probe_calculated_vpd_kpa")
+    assert value == pytest.approx(vpd_kpa(24.0, 64.0, 0.0))
+    assert value != pytest.approx(vpd_kpa(24.0, 64.0, -2.0))
+
+
+def test_impossible_probe_humidity_still_serves_metrics():
+    reading = Reading(
+        temperature_c=25.0,
+        humidity_percent=60.0,
+        probe=ProbeReading(temperature_c=24.0, humidity_percent=150.0),
+    )
+    resp = client(StaticSource(reading)).get("/metrics")
+    assert resp.status_code == 200
+    assert "grow_vpd_kpa" in resp.text

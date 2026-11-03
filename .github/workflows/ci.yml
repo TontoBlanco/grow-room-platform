@@ -48,6 +48,10 @@ jobs:
             echo "Grafana does not copy AWS_EC2_METADATA_SERVICE_ENDPOINT into the Athena plugin" >&2
             exit 1
           fi
+      - name: grow alert toggles render nothing when off
+        run: python3 tests/check_grow_alert_toggles.py
+        env:
+          REQUIRE_HELM: "1"
 
   lint:
     runs-on: ubuntu-latest

@@ -1,0 +1,34 @@
+{{- if .Values.alerts.probeDrift.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: grow-probe-drift
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grow-alerts.labels" . | nindent 4 }}
+    release: {{ .Values.prometheus.releaseLabel | quote }}
+spec:
+  groups:
+    - name: grow-alerts.probe-drift
+      rules:
+        - alert: GrowProbeDrift
+          expr: >-
+            abs(max(grow_probe_calculated_vpd_kpa{sensor_source="homeassistant"})
+            - max(grow_controller_vpd_kpa{sensor_source="homeassistant"}))
+            > {{ .Values.alerts.probeDrift.thresholdKpa }}
+          for: {{ .Values.alerts.probeDrift.for | quote }}
+          labels:
+            severity: warning
+            room: grow-room
+            grow_alert: "true"
+            namespace: {{ .Release.Namespace | quote }}
+          annotations:
+            summary: Probe VPD and the controller VPD disagree
+            description: >-
+              Calculated probe VPD (sensor-service, from the probe temperature
+              and humidity, no leaf offset) differs from the AC Infinity
+              controller reported VPD by more than {{ .Values.alerts.probeDrift.thresholdKpa }} kPa
+              for {{ .Values.alerts.probeDrift.for }}. That gap is a sign the
+              probe needs calibration. The controller app shows both sensors
+              and does not alarm on the difference.
+{{- end }}

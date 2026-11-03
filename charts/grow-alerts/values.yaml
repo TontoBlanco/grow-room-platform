@@ -1,0 +1,85 @@
+# Every alert is off. A false toggle renders no object for that alert.
+# Turn one on by setting its enabled flag to true. See docs/GROW_ALERTS.md.
+alerts:
+  staleShipper:
+    enabled: false
+    # No object under today's or yesterday's readings/dt= prefix newer than this.
+    minutes: 30
+    schedule: "*/5 * * * *"
+    bucket: grow-room-telemetry-590183769702
+    prefix: readings/
+    region: us-west-2
+  probeDrift:
+    enabled: false
+    # |calculated probe VPD - controller VPD| above this, held for `for`.
+    thresholdKpa: 0.15
+    for: 1h
+  vpdOutOfBand:
+    enabled: false
+    # Strictly greater than this share of samples outside the row's stage band.
+    outsideShare: 0.60
+    # 1 = yesterday only. 2 = yesterday and the day before. The job rejects any other value.
+    lookbackDays: 1
+    minSamples: 1
+    schedule: "15 7 * * *"
+    workgroup: grow-room-telemetry
+    database: grow_room_telemetry
+    table: readings
+    region: us-west-2
+  certExpiry:
+    enabled: false
+    withinDays: 30
+    schedule: "45 7 * * *"
+    # Dates are config. Paths are optional and empty here so the chart does not
+    # mount a certificate. Put the PEM files in C:\src\grow-room-pki, not in git.
+    # shipper.pem (Roles Anywhere leaf) and grafana-reader.pem.
+    certs:
+      - name: shipper
+        notAfter: "2027-01-31T00:00:00Z"
+        path: ""
+      - name: grafana-reader
+        notAfter: "2029-02-05T00:00:00Z"
+        path: ""
+
+# Label the Prometheus operator uses to select rules and AlertmanagerConfig objects.
+prometheus:
+  releaseLabel: monitoring
+
+# In-cluster jobs post here. The UI shows the alert either way.
+# Email is a separate toggle: delivery.email.enabled.
+delivery:
+  alertmanagerURL: ""
+  email:
+    enabled: false
+    to: ""
+    from: ""
+    smarthost: ""
+    authUsername: ""
+    existingSecret: ""
+    secretKey: password
+
+# Cron image. boto3 is installed into /tmp on the S3 and Athena runs.
+image:
+  repository: python
+  tag: "3.12-slim"
+  pullPolicy: IfNotPresent
+
+# Holds the signing helper and serves temporary credentials for the S3 and Athena jobs.
+# Rendered only when staleShipper or vpdOutOfBand is enabled.
+credentialsImage:
+  repository: public.ecr.aws/amazonlinux/amazonlinux
+  tag: "2023"
+  pullPolicy: IfNotPresent
+
+identity:
+  secretName: grafana-athena-identity
+  port: 9911
+  region: us-west-2
+
+# aws_signing_helper 1.8.5, same bytes as monitoring/values-k3d.yaml.
+signingHelper:
+  version: "1.8.5"
+  urlBase: https://rolesanywhere.amazonaws.com/releases/1.8.5
+  sha256:
+    x86_64: beec9ed1c492d93db809890f16713e3556353294b823c2184ad4e891f1b2b54d
+    aarch64: 3d131aa888cd56da446f9c6bb460b1f0569f6c7edc74eae6193a2fe3928883ba
