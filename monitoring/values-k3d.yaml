@@ -42,6 +42,135 @@ grafana:
       searchNamespace: ALL
     datasources:
       enabled: true
+  # Amazon Athena for the Grow-room History board. The plugin uses the AWS SDK
+  # default chain. A sidecar serves IMDSv2 on 127.0.0.1:9911 from a separate
+  # Roles Anywhere cert (secret grafana-athena-identity, not in git). Without
+  # that secret the sidecar sleeps and this pod still starts. Docs: docs/ATHENA_GRAFANA.md
+  plugins:
+    - grafana-athena-datasource 3.4.2
+  env:
+    AWS_REGION: us-west-2
+    AWS_DEFAULT_REGION: us-west-2
+    # No trailing slash. The SDK's IMDS client calls the sidecar in this pod.
+    AWS_EC2_METADATA_SERVICE_ENDPOINT: http://127.0.0.1:9911
+    AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE: IPv4
+    NO_PROXY: 127.0.0.1,localhost
+    no_proxy: 127.0.0.1,localhost
+  grafana.ini:
+    aws:
+      # Default chain only, so a pasted access key in the UI is not a second auth path.
+      allowed_auth_providers: default
+  additionalDataSources:
+    - name: Amazon Athena
+      uid: athena-grow-room
+      type: grafana-athena-datasource
+      access: proxy
+      isDefault: false
+      editable: true
+      orgId: 1
+      jsonData:
+        authType: default
+        defaultRegion: us-west-2
+        catalog: AwsDataCatalog
+        database: grow_room_telemetry
+        workgroup: grow-room-telemetry
+  # aws_signing_helper 1.8.5 is a glibc binary (Amzn2023). Alpine cannot run it.
+  # sha256 is checked before the sidecar execs the file.
+  extraInitContainers:
+    - name: fetch-aws-signing-helper
+      image: public.ecr.aws/amazonlinux/amazonlinux:2023
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: HOME
+          value: /tmp
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64)
+              sha=beec9ed1c492d93db809890f16713e3556353294b823c2184ad4e891f1b2b54d
+              arch=X86_64
+              ;;
+            aarch64|arm64)
+              sha=3d131aa888cd56da446f9c6bb460b1f0569f6c7edc74eae6193a2fe3928883ba
+              arch=Aarch64
+              ;;
+            *)
+              echo "unsupported architecture: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+          curl -fsSL -o /opt/rolesanywhere/aws_signing_helper \
+            "https://rolesanywhere.amazonaws.com/releases/1.8.5/${arch}/Linux/Amzn2023/aws_signing_helper"
+          echo "${sha}  /opt/rolesanywhere/aws_signing_helper" | sha256sum -c -
+          chmod 0755 /opt/rolesanywhere/aws_signing_helper
+          /opt/rolesanywhere/aws_signing_helper version
+      volumeMounts:
+        - name: aws-signing-helper
+          mountPath: /opt/rolesanywhere
+      securityContext:
+        runAsUser: 472
+        runAsGroup: 472
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+  extraContainers:
+    - name: athena-rolesanywhere
+      image: public.ecr.aws/amazonlinux/amazonlinux:2023
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -euo pipefail
+          if [ ! -s /etc/grafana-athena/tls.crt ] || [ ! -s /etc/grafana-athena/tls.key ]; then
+            echo "grafana-athena-identity is not mounted; Athena will not authenticate until that secret exists"
+            exec sleep infinity
+          fi
+          exec /opt/rolesanywhere/aws_signing_helper serve \
+            --certificate /etc/grafana-athena/tls.crt \
+            --private-key /etc/grafana-athena/tls.key \
+            --trust-anchor-arn "$(tr -d '[:space:]' < /etc/grafana-athena/trust-anchor-arn)" \
+            --profile-arn "$(tr -d '[:space:]' < /etc/grafana-athena/profile-arn)" \
+            --role-arn "$(tr -d '[:space:]' < /etc/grafana-athena/role-arn)" \
+            --region us-west-2 \
+            --port 9911
+      volumeMounts:
+        - name: aws-signing-helper
+          mountPath: /opt/rolesanywhere
+          readOnly: true
+        - name: grafana-athena-identity
+          mountPath: /etc/grafana-athena
+          readOnly: true
+      securityContext:
+        runAsUser: 472
+        runAsGroup: 472
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+  extraContainerVolumes:
+    - name: aws-signing-helper
+      emptyDir: {}
+    - name: grafana-athena-identity
+      secret:
+        secretName: grafana-athena-identity
+        optional: true
+        defaultMode: 0440
   resources:
     requests:
       cpu: 50m

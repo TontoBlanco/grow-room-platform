@@ -170,8 +170,9 @@ resource "aws_glue_catalog_table" "readings" {
       type = "string"
     }
     # Optional. ship_readings adds it when /readings includes growth_stage.
-    # Older objects omit it; Athena returns null. Queries that do not select
-    # stage keep the same columns.
+    # Older objects omit it; Athena returns null. The history dashboard
+    # treats null as the veg band. Queries that do not select stage keep
+    # the same columns.
     columns {
       name = "stage"
       type = "string"
@@ -197,6 +198,9 @@ resource "aws_athena_workgroup" "telemetry" {
 }
 
 # ---------- home PC identity: IAM Roles Anywhere ----------
+# grow-room-home-shipper stays write-only: s3:PutObject on readings/* and the
+# KMS calls S3 needs to encrypt those objects. Do not add Athena, Glue, or
+# s3:GetObject here. Grafana uses grow-room-grafana-reader (grafana_reader.tf).
 resource "aws_rolesanywhere_trust_anchor" "home" {
   name    = "grow-room-home-ca"
   enabled = true

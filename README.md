@@ -452,9 +452,15 @@ kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
 
 Prometheus targets: `http://127.0.0.1:9090/targets`.
 Grafana: `http://127.0.0.1:3000` (lab credentials `admin` / `grow-room-lab`).
-The dashboard is **Grow-room VPD**, uid `grow-room-vpd`. Live-only panels show
+The live dashboard is **Grow-room VPD**, uid `grow-room-vpd`. Live-only panels show
 **No HA sample** until Home Assistant has supplied readings and the host
 scrape is UP.
+
+**Grow-room History** (uid `grow-room-history`) reads the long-term tent
+archive in Amazon Athena: database `grow_room_telemetry`, workgroup
+`grow-room-telemetry`, region `us-west-2`. Grafana uses its own read-only
+Roles Anywhere certificate. The shipper role stays write-only. Auto-refresh
+is off. Apply steps are in [docs/ATHENA_GRAFANA.md](docs/ATHENA_GRAFANA.md).
 
 This lab defines two starting-point SLOs for the in-cluster simulator:
 

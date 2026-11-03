@@ -3,6 +3,8 @@
 -- fixed so this query remains comparable. Shipped rows may also include
 -- `stage` (seedling, veg, flower, late_flower). Older objects leave it
 -- null. This query does not select stage.
+-- Stage-aware daily history is analytics/athena/history_by_day.sql
+-- and the Grow-room History dashboard.
 SELECT dt,
        count(*)                                                        AS samples,
        round(avg(vpd_kpa), 2)                                          AS avg_vpd,
