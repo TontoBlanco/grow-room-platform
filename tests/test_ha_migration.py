@@ -15,6 +15,8 @@ import tarfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "ha_migration.py"
 POC = ROOT / "scripts" / "aws-poc.ps1"
@@ -59,6 +61,7 @@ def test_argument_parsing_surface():
     assert "[switch]$WithHA" in text
     assert "[switch]$DryRun" in text
     assert "[int]$HaBackupKeep = 5" in text
+    assert "[string]$HaConfigPath" in text
     assert "Invoke-UpStack" in text
     assert "if (-not $WithHA)" in text
     assert "enable_ha_migration=true" in text
@@ -491,6 +494,282 @@ def test_pack_script_and_restore_script(tmp_path):
     assert json.loads(again.stdout)["skipped"] is True
 
 
+def _powershell_function(text: str, name: str) -> str:
+    return text.split(f"function {name}", 1)[1].split("\nfunction ", 1)[0]
+
+
+def test_wsl_listing_uses_the_first_name_and_accepts_utf16():
+    ha = load()
+    utf16 = "Ubuntu\r\ndocker-desktop\r\n".encode("utf-16-le")
+    assert ha.wsl_default_distro(utf16) == "Ubuntu"
+    bom = "\ufeffUbuntu\n".encode("utf-16-le")
+    assert ha.wsl_default_distro(bom) == "Ubuntu"
+    marked = b"* Ubuntu (Default)\ndocker-desktop\n"
+    assert ha.wsl_default_distro(marked) == "Ubuntu"
+    skipped = b"not a distro\nUbuntu\n"
+    assert ha.wsl_default_distro(skipped) == "Ubuntu"
+    with pytest.raises(ValueError):
+        ha.wsl_default_distro(b"")
+
+
+def test_map_config_path_wsl_unc_drive_and_desktop_mounts():
+    ha = load()
+    linux = "/home/colem/src/grow-room-platform/ha-config"
+    assert ha.map_config_path(linux, "Ubuntu") == (
+        r"\\wsl.localhost\Ubuntu\home\colem\src\grow-room-platform\ha-config"
+    )
+    assert ha.map_config_path("/", "Ubuntu") == r"\\wsl.localhost\Ubuntu"
+    desktop = "/run/desktop/mnt/host/c/src/grow-room-platform/ha-config"
+    assert ha.map_config_path(desktop, "") == r"C:\src\grow-room-platform\ha-config"
+    assert ha.map_config_path("/mnt/c/src/grow-room-platform/ha-config", "") == (
+        r"C:\src\grow-room-platform\ha-config"
+    )
+    unc = r"\\wsl.localhost\Ubuntu\home\colem\src\grow-room-platform\ha-config"
+    assert ha.map_config_path(unc, "") == unc
+    assert ha.map_config_path(r"C:\src\grow-room-platform\ha-config", "") == (
+        r"C:\src\grow-room-platform\ha-config"
+    )
+    assert ha.needs_wsl_distro(linux) is True
+    assert ha.needs_wsl_distro(desktop) is False
+    assert ha.needs_wsl_distro("/mnt/c/src") is False
+    with pytest.raises(ValueError):
+        ha.map_config_path("/home/colem/../../etc", "Ubuntu")
+    with pytest.raises(ValueError):
+        ha.map_config_path(linux, "Ubuntu;rm")
+    with pytest.raises(ValueError):
+        ha.map_config_path(linux, "")
+
+
+def test_resolve_config_path_prefers_explicit_then_mount_then_repo():
+    ha = load()
+    repo = r"C:\src\grow-room-platform\ha-config"
+    mount = "/home/colem/src/grow-room-platform/ha-config"
+    explicit = ha.resolve_config_path(
+        {
+            "explicit": r"D:\ha-config",
+            "mount_source": mount,
+            "distro": "Ubuntu",
+            "repo_config": repo,
+        }
+    )
+    assert explicit == {"path": r"D:\ha-config", "origin": "explicit", "need_distro": False}
+    need = ha.resolve_config_path(
+        {"explicit": "", "mount_source": mount, "distro": "", "repo_config": repo}
+    )
+    assert need["need_distro"] is True
+    assert need["origin"] == "container-mount"
+    assert need["path"] == ""
+    mapped = ha.resolve_config_path(
+        {"explicit": "", "mount_source": mount, "distro": "Ubuntu", "repo_config": repo}
+    )
+    assert mapped["origin"] == "container-mount"
+    assert mapped["need_distro"] is False
+    assert mapped["path"] == (r"\\wsl.localhost\Ubuntu\home\colem\src\grow-room-platform\ha-config")
+    default = ha.resolve_config_path(
+        {"explicit": "", "mount_source": "", "distro": "", "repo_config": repo}
+    )
+    assert default == {"path": repo, "origin": "repo-default", "need_distro": False}
+    desktop = ha.resolve_config_path(
+        {
+            "explicit": "",
+            "mount_source": "/run/desktop/mnt/host/c/src/grow-room-platform/ha-config",
+            "distro": "",
+            "repo_config": repo,
+        }
+    )
+    assert desktop["need_distro"] is False
+    assert desktop["path"] == repo
+
+
+def test_select_home_container_prefers_the_running_compose_service():
+    ha = load()
+    mount = "/home/colem/src/grow-room-platform/ha-config"
+    picked = ha.select_home_container(
+        [
+            {
+                "name": "sensor-service",
+                "running": True,
+                "service": "sensor-service",
+                "source": "/app",
+            },
+            {
+                "name": "other-homeassistant",
+                "running": True,
+                "service": "",
+                "source": "/data/other",
+            },
+            {
+                "name": "/grow-room-platform-homeassistant-1",
+                "running": True,
+                "service": "homeassistant",
+                "source": mount,
+            },
+        ]
+    )
+    assert picked["name"] == "grow-room-platform-homeassistant-1"
+    assert picked["running"] is True
+    assert picked["source"] == mount
+    assert picked["service"] == "homeassistant"
+
+    stopped = ha.select_home_container(
+        {
+            "name": "/grow-room-platform-homeassistant-1",
+            "running": "false",
+            "service": "homeassistant",
+            "source": mount,
+        }
+    )
+    assert stopped["name"] == "grow-room-platform-homeassistant-1"
+    assert stopped["running"] is False
+
+    running_name = ha.select_home_container(
+        [
+            {
+                "name": "grow-room-platform-homeassistant-1",
+                "running": False,
+                "service": "homeassistant",
+                "source": "/home/old",
+            },
+            {
+                "name": "other-homeassistant",
+                "running": True,
+                "service": "",
+                "source": mount,
+            },
+        ]
+    )
+    assert running_name["name"] == "other-homeassistant"
+    assert ha.select_home_container([])["name"] == ""
+
+
+def test_archive_plan_tars_inside_wsl_and_keeps_drive_paths_on_python():
+    ha = load()
+    config = r"\\wsl.localhost\Ubuntu\home\colem\src\grow-room-platform\ha-config"
+    archive = r"C:\Users\colem\AppData\Local\Temp\ha.tar.gz"
+    staged = r"C:\Users\colem\AppData\Local\Temp\ha-stage"
+    plan = ha.archive_plan(config, archive, staged)
+    assert plan["use_wsl"] is True
+    assert plan["distro"] == "Ubuntu"
+    assert plan["linux_config"] == "/home/colem/src/grow-room-platform/ha-config"
+    assert plan["pack"] == [
+        "tar",
+        "-C",
+        "/home/colem/src/grow-room-platform/ha-config",
+        "-czf",
+        "/mnt/c/Users/colem/AppData/Local/Temp/ha.tar.gz",
+        "--one-file-system",
+        "--exclude=*.sock",
+        ".",
+    ]
+    commands = [step["argv"][0] for step in plan["steps"]]
+    assert commands.count("bash") == 2
+    assert "/usr/bin/test" in commands
+    assert "cp" in commands
+    rollback = [step for step in plan["steps"] if step["when"] == "rollback"]
+    assert len(rollback) == 1
+    assert "$1" in rollback[0]["argv"][2]
+    copy = next(step for step in plan["steps"] if step["argv"][0] == "cp")
+    assert copy["argv"][2].endswith("/.")
+    local = ha.archive_plan(r"C:\src\grow-room-platform\ha-config", archive)
+    assert local["use_wsl"] is False
+    assert local["pack"] == []
+    with pytest.raises(ValueError, match="inside"):
+        ha.archive_plan(r"\\wsl.localhost\Ubuntu\mnt\c\temp", r"C:\temp\ha.tar.gz")
+
+
+def test_cli_wsl_distro_and_resolve_config(tmp_path):
+    raw = base64.b64encode("Ubuntu\n".encode("utf-16-le")).decode("ascii")
+    listed = subprocess.run(  # noqa: S603
+        [sys.executable, str(SCRIPT), "wsl-distro", "--base64", raw],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert listed.returncode == 0, listed.stderr
+    assert json.loads(listed.stdout)["distro"] == "Ubuntu"
+    payload = tmp_path / "in.json"
+    payload.write_text(
+        json.dumps(
+            {
+                "explicit": "",
+                "mount_source": "/home/colem/src/grow-room-platform/ha-config",
+                "distro": "Ubuntu",
+                "repo_config": r"C:\src\grow-room-platform\ha-config",
+            }
+        ),
+        encoding="utf-8",
+    )
+    resolved = subprocess.run(  # noqa: S603
+        [sys.executable, str(SCRIPT), "resolve-config", "--input", str(payload)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert resolved.returncode == 0, resolved.stderr
+    body = json.loads(resolved.stdout)
+    assert body["origin"] == "container-mount"
+    assert body["path"].endswith(r"\ha-config")
+    assert "token" not in resolved.stdout
+
+
+def test_powershell_resolves_ha_config_path_and_targets_the_container():
+    poc = POC.read_text(encoding="utf-8")
+    helper = HELPER.read_text(encoding="utf-8")
+    example = (ROOT / ".env.example").read_text(encoding="utf-8")
+    assert "[string]$HaConfigPath" in poc
+    assert "Get-HaStartHint" in poc
+    assert "GROW_HA_CONFIG_PATH" in helper
+    assert "GROW_HA_CONFIG_PATH" in example
+    assert "wsl.localhost" in helper
+    assert "-l -q" in helper
+    assert "28591" in helper
+    assert "wsl-distro" in helper
+    assert "docker inspect" in helper
+    assert "com.docker.compose.service" in helper
+    explicit = _powershell_function(helper, "Get-ExplicitHaConfigPath")
+    assert explicit.index("$HaConfigPath") < explicit.index("$env:GROW_HA_CONFIG_PATH")
+    assert explicit.index("$env:GROW_HA_CONFIG_PATH") < explicit.index("Read-DotEnvValue")
+    stop = _powershell_function(helper, "Stop-HomeHa")
+    start = _powershell_function(helper, "Start-HomeHa")
+    assert "docker stop" in stop
+    assert "docker start" in start
+    for body in (stop, start):
+        assert "& docker compose" not in body
+        assert "project-directory" not in body
+    dry = _powershell_function(helper, "Invoke-HaDryRunChecks")
+    assert dry.index("Write-HaLayout") < dry.index("Assert-HaMovePreflight")
+    for banned in (
+        "Stop-HomeHa",
+        "Start-HomeHa",
+        "Backup-HomeConfigToS3",
+        "Send-VerifiedBackup",
+        "Invoke-PackHaConfig",
+        "Invoke-WslArgv",
+        "docker stop",
+        "docker start",
+    ):
+        assert banned not in dry
+    prepare = _powershell_function(helper, "Invoke-WithHaPrepare")
+    assert prepare.index("Write-HaLayout") < prepare.index('if ($plan.action -eq "dry-run")')
+    assert prepare.index('if ($plan.action -eq "dry-run")') < prepare.index("Stop-HomeHa")
+    pack = _powershell_function(helper, "Invoke-PackHaConfig")
+    assert "use_wsl" in pack
+    assert "check-archive" in pack
+    assert '"pack"' in pack
+    wsl_cmd = _powershell_function(helper, "Invoke-WslArgv")
+    assert "-u root" in wsl_cmd
+    assert "-u root" in _powershell_function(helper, "Test-HaDatabaseFile")
+    restore = _powershell_function(helper, "Restore-HomeFromS3Key")
+    assert "Invoke-StageArchive" in restore
+    assert "Invoke-WslRestoreSteps" in restore
+    assert "restore-home" in restore
+    assert "stage-archive" in _powershell_function(helper, "Invoke-StageArchive")
+    layout = _powershell_function(helper, "Resolve-HaLayout")
+    assert "config_dir" in layout
+    assert "need_distro" in layout
+    assert "Get-WslDefaultDistro" in layout
+
+
 def test_phase8_doc_covers_cost_data_and_failure_modes():
     doc = (ROOT / "docs" / "aws-poc" / "PHASE8_HA_MIGRATION.md").read_text(encoding="utf-8")
     assert "0.70" in doc
@@ -505,3 +784,12 @@ def test_phase8_doc_covers_cost_data_and_failure_modes():
     assert "one" in doc.lower()
     for phrase in ("backup", "Dry run", "both copies", "KMS"):
         assert phrase in doc or phrase.lower() in doc.lower()
+    for phrase in (
+        "HaConfigPath",
+        "GROW_HA_CONFIG_PATH",
+        "wsl.localhost",
+        "docker stop",
+        "UTF-16",
+        "config path",
+    ):
+        assert phrase in doc

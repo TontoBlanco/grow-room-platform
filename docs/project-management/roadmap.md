@@ -20,7 +20,7 @@ The four alerts are a stale S3 shipper, a day of VPD outside the stage band, cer
 
 ## 4. Phase 8 — Home Assistant moves between the house and AWS
 
-Built. `scripts/aws-poc.ps1 up -WithHA` stops the Compose service `homeassistant`, uploads `ha-config/` (including `home-assistant_v2.db`) to the existing telemetry bucket under `ha-backups/`, and restores that archive into one EKS pod. `down` copies it back, starts Compose, then runs the old teardown. The write-up is [Phase 8](../aws-poc/PHASE8_HA_MIGRATION.md).
+Built. `scripts/aws-poc.ps1 up -WithHA` stops the Home Assistant container with `docker stop` (the running `homeassistant` container, including one started from the WSL checkout), uploads that config folder (including `home-assistant_v2.db`) to the existing telemetry bucket under `ha-backups/`, and restores that archive into one EKS pod. `down` copies it back, runs `docker start` on the same container, then runs the old teardown. `-HaConfigPath` or `GROW_HA_CONFIG_PATH` overrides the folder. The write-up is [Phase 8](../aws-poc/PHASE8_HA_MIGRATION.md).
 
 `ha-config/` stays gitignored. The backup role is `grow-room-ha-backup` on prefix `ha-backups/` only, using `alias/grow-room/telemetry`. Plain `up` does not move Home Assistant. RDS audit rows on AWS stay throwaway test data. A sync with the laptop SQLite file is not built.
 

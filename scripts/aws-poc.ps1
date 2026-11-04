@@ -1,6 +1,6 @@
 # scripts/aws-poc.ps1  - bring the PoC up, check it, tear it down.  Windows PowerShell 5.1.
 # Usage:  .\scripts\aws-poc.ps1 up       [-SkipTerraform] [-AutoApprove]
-#         .\scripts\aws-poc.ps1 up -WithHA [-DryRun] [-HaBackupKeep 5]
+#         .\scripts\aws-poc.ps1 up -WithHA [-DryRun] [-HaBackupKeep 5] [-HaConfigPath path]
 #         .\scripts\aws-poc.ps1 verify   [-WithHA]
 #         .\scripts\aws-poc.ps1 down     [-SkipTerraform] [-AutoApprove]
 # Keep this file plain ASCII (PowerShell 5.1 misreads UTF-8 without BOM).
@@ -15,7 +15,8 @@ param(
   [switch]$WithHA,
   [switch]$DryRun,
   [ValidateRange(1, 50)]
-  [int]$HaBackupKeep = 5
+  [int]$HaBackupKeep = 5,
+  [string]$HaConfigPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -210,7 +211,7 @@ function Do-Up {
           }
           Start-HomeHa
         } catch {
-          Write-Host "  FAIL  Home Assistant at home did not restart. Run: docker compose up -d --no-deps homeassistant" -ForegroundColor Red
+          Write-Host "  FAIL  Home Assistant at home did not restart. Run: $(Get-HaStartHint)" -ForegroundColor Red
         }
       }
     }

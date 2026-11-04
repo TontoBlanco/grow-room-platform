@@ -2,17 +2,51 @@
 
 This page is the move between the PC and a short EKS session. It is for someone who has the repo and has not watched the tent being built.
 
-Home Assistant at home is one Docker Compose service. `docker-compose.yml` names it `homeassistant`. The image is `ghcr.io/home-assistant/home-assistant:stable`. The whole config folder is `ha-config/` in the repo root, mounted at `/config`. That folder is gitignored. It holds the AC Infinity login, the long-lived token material, and `home-assistant_v2.db`.
+Home Assistant at home is one Docker Compose service. `docker-compose.yml` names it `homeassistant`. The image is `ghcr.io/home-assistant/home-assistant:stable`. The config folder is mounted at `/config`. It is gitignored. It holds the AC Infinity login, the long-lived token material, and `home-assistant_v2.db`.
+
+On this PC the script runs from the Windows checkout `C:\src\grow-room-platform`, and Home Assistant runs from the WSL checkout. The container is `grow-room-platform-homeassistant-1`. Its `/config` mount is `/home/colem/src/grow-room-platform/ha-config`, which Windows sees as `\\wsl.localhost\Ubuntu\home\colem\src\grow-room-platform\ha-config`. `home-assistant_v2.db` is in that folder. A dry run that only looks at `C:\src\grow-room-platform\ha-config` reports the database missing and never reads the real one.
 
 `scripts/aws-poc.ps1 up` without `-WithHA` does not stop that container, does not read the folder, and does not install Home Assistant on EKS. Sensor-service on EKS stays on the simulator, the same as the November sessions.
 
+## Which folder is backed up
+
+The folder used for the database check, the backup, and the restore is chosen in this order:
+
+1. `-HaConfigPath`
+2. Environment variable `GROW_HA_CONFIG_PATH`
+3. The same key in the gitignored `.env`
+4. The `/config` mount of the Home Assistant container, when none of those is set
+5. `ha-config` in the repo root
+
+A relative path is joined to the repo root. A Windows path is used as given. Docker Desktop host mounts (`/run/desktop/mnt/host/c/...` and `/mnt/c/...`) become a drive letter such as `C:\...`. Any other Linux mount, including `/home/colem/...`, is mapped with the default WSL distro. The script runs `wsl.exe -l -q`, reads the bytes as UTF-16LE or UTF-8 (the console listing is UTF-16), and uses the first name. That is the default distro. `/home/colem/src/grow-room-platform/ha-config` with default distro `Ubuntu` becomes `\\wsl.localhost\Ubuntu\home\colem\src\grow-room-platform\ha-config`.
+
+The container is the one Docker reports. A running container whose Compose label `com.docker.compose.service` is `homeassistant` wins. If none is running, a stopped container with that label is used, so `down` can put the files back in the same folder. If there is no Compose label, a container whose name contains `homeassistant` matches (`grow-room-platform-homeassistant-1` on this PC).
+
+Dry run prints `config path`, `config origin` (`explicit`, `container-mount`, or `repo-default`), and `container`. It does not stop that container, build a tar, upload, or create AWS resources.
+
+```powershell
+.\scripts\aws-poc.ps1 up -WithHA -DryRun -HaConfigPath '\\wsl.localhost\Ubuntu\home\colem\src\grow-room-platform\ha-config'
+```
+
+Leave the parameter unset when the container mount is the right source. The `.env` line is the same path:
+
+```powershell
+GROW_HA_CONFIG_PATH=\\wsl.localhost\Ubuntu\home\colem\src\grow-room-platform\ha-config
+```
+
+## Stop, start, and the tar
+
+Stop and start call `docker stop` and `docker start` with the inspected container name. They do not run `docker compose` against the `C:\` checkout. That checkout is a different project directory from the WSL one, so Compose there would miss `grow-room-platform-homeassistant-1`.
+
+A folder on a drive letter, including the repo `ha-config` default, is still packed and restored by `scripts/ha_migration.py`. A `\\wsl.localhost\<distro>\...` folder is packed with `wsl.exe -d <distro> -u root -- tar` inside that distro. Root is required because the container writes `home-assistant_v2.db` as root, and the default WSL user cannot always read or rename those files. The gzip file is written to the Windows temp directory through `/mnt/<drive>/...`. PowerShell does not pipe those bytes. Windows PowerShell 5.1 corrupts binary pipeline data, and a Python walk of the `\\wsl.localhost` share is a poor reader for `home-assistant_v2.db`. Restore checks the archive in Python (the safe extract), copies the checked tree into the distro, and renames the live folder only after `home-assistant_v2.db` is non-empty. The distro needs GNU `tar`, `cp`, and `bash`. Ubuntu has them. `wsl -d` uses the distro name that is already in the UNC path.
+
 ## What moves
 
-One gzip archive of `ha-config/`, including `home-assistant_v2.db`. The script uploads it to the existing telemetry bucket `grow-room-telemetry-590183769702`, prefix `ha-backups/<timestamp>.tar.gz`. The object is encrypted with the existing key `alias/grow-room/telemetry`. The script checks the size, the SHA-256 checksum, and that header before it will continue. It does not print the archive or the token.
+One gzip archive of the resolved config folder, including `home-assistant_v2.db`. The default folder is still `ha-config/` in the repo root. The script uploads it to the existing telemetry bucket `grow-room-telemetry-590183769702`, prefix `ha-backups/<timestamp>.tar.gz`. The object is encrypted with the existing key `alias/grow-room/telemetry`. The script checks the size, the SHA-256 checksum, and that header before it will continue. It does not print the archive or the token.
 
 On EKS the archive is restored onto one Home Assistant pod. sensor-service in that session is pointed at `http://home-assistant.grow-room.svc.cluster.local:8123` and reads `HA_TOKEN` from the gitignored `.env`. The token is applied as a Kubernetes secret at runtime. It is not a Helm value and it is not committed.
 
-`down` copies the pod's `/config` back to the same prefix, checks the object, writes it over `ha-config/`, starts the Compose service, and only then runs the teardown this repo already had, including the available-ENI cleanup.
+`down` copies the pod's `/config` back to the same prefix, checks the object, writes it over the resolved config folder, starts that same container with `docker start`, and only then runs the teardown this repo already had, including the available-ENI cleanup.
 
 The script keeps the newest 5 objects under `ha-backups/` (change it with `-HaBackupKeep`). A lifecycle rule on that prefix only aborts a multipart upload that never finished. It does not delete a finished backup on a timer, because "newest 5" is a count and lifecycle rules expire by age.
 
@@ -26,7 +60,7 @@ The script keeps the newest 5 objects under `ha-backups/` (change it with `-HaBa
 
 ## Why only one copy
 
-The AC Infinity integration logs into one cloud account from Home Assistant. Two running copies refresh that login and fight. The script refuses to start the EKS pod while the Compose service is running, and it refuses to start the Compose service while the EKS container is running. If both are already up, it stops and changes nothing.
+The AC Infinity integration logs into one cloud account from Home Assistant. Two running copies refresh that login and fight. The script refuses to start the EKS pod while the home container is running, and it refuses to start the home container while the EKS container is running. If both are already up, it stops and changes nothing.
 
 ## Cost
 
@@ -36,7 +70,7 @@ Run `down` before you leave the machine. `down` keeps the state bucket, the stat
 
 ## Before you pay
 
-Apply the telemetry root once so the role `grow-room-ha-backup` exists. That apply does not create EKS. Then run the dry run. It checks Docker, the database file, the role, the bucket prefix, and the KMS alias. It does not stop Home Assistant, upload, or apply Terraform.
+Apply the telemetry root once so the role `grow-room-ha-backup` exists. That apply does not create EKS. Then run the dry run. It checks Docker, the resolved database file, the role, the bucket prefix, and the KMS alias. It prints the config path and the container name. It does not stop Home Assistant, upload, or apply Terraform.
 
 ```powershell
 Set-Location C:\src\grow-room-platform
@@ -94,12 +128,12 @@ kubectl config use-context k3d-grow-room-dev
 
 | What you see | What the script does | What you do |
 | --- | --- | --- |
-| Backup fails, or S3 does not match size, checksum, and `aws:kms` | `up` aborts. Terraform does not apply. If this move stopped Compose, it starts `homeassistant` again. EKS Home Assistant is not installed. | Read the error. The config folder is still on disk. Fix Docker, the role, or the key, then dry-run again. |
+| Backup fails, or S3 does not match size, checksum, and `aws:kms` | `up` aborts. Terraform does not apply. If this move stopped the container, it runs `docker start` on that container. EKS Home Assistant is not installed. | Read the error. The config folder is still on disk. The message includes the path it checked. Fix Docker, the role, or the key, then dry-run again. |
 | Both copies are already running | The script refuses and changes nothing. | Stop the copy you do not want. Do not start the other one until the first is stopped. |
 | Home is still running at the moment EKS would start | EKS Home Assistant is not installed. | The stop did not stick. Start Docker, stop the Compose service, and do not start a second copy by hand. |
 | `down` cannot verify the EKS backup | EKS Home Assistant stays up. Compose is not started. Terraform destroy does not run. | The live config is still the pod. Fix the upload and run `down` again. |
-| The file restore at home fails | Compose is not started. Teardown does not run. If the pod was scaled to zero, the script scales it back to one. | The previous `ha-config/` is renamed `ha-config.previous/` only after a good extract. A failed extract leaves the old folder in place. |
-| The window was closed after Compose stopped and before EKS was serving | `.ha-migration-state.json` says `moving`. The folder is still on disk. | Run `down`, or `docker compose up -d --no-deps homeassistant` after you are sure the EKS container is not running. |
+| The file restore at home fails | The container is not started. Teardown does not run. If the pod was scaled to zero, the script scales it back to one. | The previous folder is renamed with a `.previous` suffix only after a good extract. A failed extract leaves the old folder in place. |
+| The window was closed after the container stopped and before EKS was serving | `.ha-migration-state.json` says `moving`. The folder is still on disk. | Run `down`, or `docker start` on the home container after you are sure the EKS container is not running. |
 | `up` without `-WithHA` while a `-WithHA` stack is still up | The plan does not pass `enable_ha_migration`. Terraform will want to remove the volume driver and the pod identity. | Do not plain-`up` over a live move. Use `down`, or `up -WithHA -SkipTerraform` if you are only repeating the Kubernetes half. |
 
 The IAM role can `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, and `s3:ListBucket` on `ha-backups/` only, plus the KMS calls that key needs. It is not `s3:*`. The shipper role is unchanged.
