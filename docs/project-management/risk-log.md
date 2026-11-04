@@ -21,5 +21,6 @@ Scores are High, Medium, or Low. I wrote this from the repository and from the t
 | R15 | Cost Explorer cells stay blank, and the script's 0.70 USD figure gets quoted as a measurement. | Medium | Low | `COSTS.md` is still empty on purpose. Phase 6 says to fill it from the API. | Open |
 | R16 | Grafana lab password and the state KMS key id are in Git. | High, they are in the files | Medium | I do not copy them into new pages. Rotating the lab password is a local change. The state key id moving would be a backend change. | Open |
 | R17 | No Dependabot or Renovate. Pinned actions still go stale. | Medium | Low | On the roadmap, after the product work. | Open |
+| R18 | Two Home Assistant copies log into AC Infinity at once. | Medium, during a move | Medium | `up -WithHA` and `down` refuse to start the second copy. The failure table is on the Phase 8 page. | Mitigated in the script |
 
 I am not scoring a physical break-in or a stolen laptop beyond R6 and the Roles Anywhere key. Those need a different note than this log.

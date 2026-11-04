@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: home-assistant-scripts
+  labels:
+    app.kubernetes.io/name: home-assistant
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  restore.sh: |
+{{ .Files.Get "files/restore.sh" | indent 4 }}
+  pack_config.py: |
+{{ .Files.Get "files/pack_config.py" | indent 4 }}

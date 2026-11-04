@@ -56,3 +56,9 @@ variable "alert_email" {
   type        = string
   default     = ""
 }
+
+variable "enable_ha_migration" {
+  description = "Phase 8 only. Create the EBS CSI addon, node volume permissions, and the Home Assistant pod identity association. Leave false so a plain up plan does not add them. scripts/aws-poc.ps1 passes true only with -WithHA."
+  type        = bool
+  default     = false
+}

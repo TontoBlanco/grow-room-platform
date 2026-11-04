@@ -1,0 +1,11 @@
+apiVersion: v2
+name: home-assistant
+description: One Home Assistant copy for an aws-poc -WithHA session. Not installed by plain up.
+type: application
+version: 0.1.0
+appVersion: "stable"
+keywords:
+  - grow-room
+  - home-assistant
+maintainers:
+  - name: Cole Miller

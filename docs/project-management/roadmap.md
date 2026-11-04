@@ -20,14 +20,9 @@ The four alerts are a stale S3 shipper, a day of VPD outside the stage band, cer
 
 ## 4. Phase 8 — Home Assistant moves between the house and AWS
 
-I want to stop treating the Home Assistant config as a folder that only exists on one disk. The move is backup and restore through S3: take a backup at home, put it in a bucket, and restore it on a session in `us-west-2`, then the other direction.
+Built. `scripts/aws-poc.ps1 up -WithHA` stops the Compose service `homeassistant`, uploads `ha-config/` (including `home-assistant_v2.db`) to the existing telemetry bucket under `ha-backups/`, and restores that archive into one EKS pod. `down` copies it back, starts Compose, then runs the old teardown. The write-up is [Phase 8](../aws-poc/PHASE8_HA_MIGRATION.md).
 
-This is not built. There is no backup script, no bucket policy, and no restore test. When I write it I will:
-
-- Keep `ha-config/` gitignored. The backup will contain secrets.
-- Use a dedicated bucket and a KMS key, with a cost note. A bucket left behind is a monthly bill, small until the backups pile up.
-- Not put the AC Infinity password or `HA_TOKEN` in the documentation.
-- Test restore on a scratch Home Assistant, not on the live tent, the first time.
+`ha-config/` stays gitignored. The backup role is `grow-room-ha-backup` on prefix `ha-backups/` only, using `alias/grow-room/telemetry`. Plain `up` does not move Home Assistant. RDS audit rows on AWS stay throwaway test data. A sync with the laptop SQLite file is not built.
 
 ## 5. Dependabot or Renovate
 

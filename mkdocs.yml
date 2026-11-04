@@ -58,6 +58,7 @@ nav:
       - Phase 5 — Signing, SBOM, and the scan gate: phases/phase-5-supply-chain.md
       - Phase 6 — Costs and decision records: phases/phase-6-costs-and-adrs.md
       - Phase 7 — Ansible on WSL2: phases/phase-7-ansible.md
+      - Phase 8 — Home Assistant move: aws-poc/PHASE8_HA_MIGRATION.md
   - Project management:
       - Decisions: project-management/decisions.md
       - Risk log: project-management/risk-log.md

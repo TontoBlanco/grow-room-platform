@@ -23,6 +23,7 @@ Names and purposes only. I am not writing account ids, role ARNs, key ids, token
 | `grow-room-poc-external-dns` | `kube-system` / `external-dns` | Change records in the one hosted zone. |
 | `grow-room-poc-cloudwatch` | `cloudwatch-agent` | Container Insights, when `enable_container_insights` is true. |
 | `grow-room-poc-alertmanager` | `monitoring` / `alertmanager` | `sns:Publish` on topic `grow-room-poc-alerts`. |
+| `grow-room-ha-backup` | `grow-room` / `home-assistant` | Phase 8 only, when `enable_ha_migration` is true. The same backup role as the home PC. |
 | Karpenter Pod Identity | `kube-system` / `karpenter` | The Karpenter controller, from the module in `infra/aws-poc/eks.tf`. |
 | `grow-room-poc-karpenter-node` | Node role | The name set on the Karpenter node role. |
 
@@ -34,6 +35,7 @@ Names and purposes only. I am not writing account ids, role ARNs, key ids, token
 | Profile `grow-room-home` | One hour sessions. |
 | Role `grow-room-home-shipper` | Put objects under `readings/*` and use the telemetry KMS key. |
 | Policy `put-readings` | The inline policy on that role. |
+| Role `grow-room-ha-backup` | Phase 8. Get, put, and delete objects under `ha-backups/` only, and use `alias/grow-room/telemetry`. Not `s3:*`. The shipper role cannot assume it. |
 
 ## Keys
 

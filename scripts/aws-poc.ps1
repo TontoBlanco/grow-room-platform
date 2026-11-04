@@ -1,15 +1,21 @@
-﻿# scripts/aws-poc.ps1  - bring the PoC up, check it, tear it down.  Windows PowerShell 5.1.
+# scripts/aws-poc.ps1  - bring the PoC up, check it, tear it down.  Windows PowerShell 5.1.
 # Usage:  .\scripts\aws-poc.ps1 up       [-SkipTerraform] [-AutoApprove]
-#         .\scripts\aws-poc.ps1 verify
+#         .\scripts\aws-poc.ps1 up -WithHA [-DryRun] [-HaBackupKeep 5]
+#         .\scripts\aws-poc.ps1 verify   [-WithHA]
 #         .\scripts\aws-poc.ps1 down     [-SkipTerraform] [-AutoApprove]
 # Keep this file plain ASCII (PowerShell 5.1 misreads UTF-8 without BOM).
+# -WithHA moves Home Assistant. Plain up does not. Helpers: aws-poc-ha.ps1.
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true, Position = 0)]
   [ValidateSet("up", "verify", "down")]
   [string]$Action,
   [switch]$SkipTerraform,
-  [switch]$AutoApprove
+  [switch]$AutoApprove,
+  [switch]$WithHA,
+  [switch]$DryRun,
+  [ValidateRange(1, 50)]
+  [int]$HaBackupKeep = 5
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +27,7 @@ $Account    = "590183769702"
 $Cluster    = "grow-room-poc"
 $AppFqdn    = "app.mygrowroom.click" # NOT $Host - also automatic
 $ZoneId     = "Z10410981MCU751WUGL52"
+. (Join-Path $PSScriptRoot "aws-poc-ha.ps1")
 
 function Step([string]$m) { Write-Host "" ; Write-Host "==> $m" -ForegroundColor Cyan }
 function Ok([string]$m)   { Write-Host "  PASS  $m" -ForegroundColor Green }
@@ -175,6 +182,43 @@ function Remove-AvailableEnis([string]$VpcId) {
 }
 
 function Do-Up {
+  if ($DryRun -and -not $WithHA) { throw "-DryRun is only valid with -WithHA." }
+  $script:HaStoppedHome = $false
+  if (-not $WithHA) {
+    Invoke-UpStack
+    return
+  }
+  Assert-Session
+  Invoke-WithHaPrepare
+  if ($script:HaDryRunStop) {
+    Write-Host ""
+    Write-Host "DRY RUN. Home Assistant was not stopped. Nothing was uploaded. Terraform was not applied." -ForegroundColor Green
+    return
+  }
+  try {
+    Invoke-UpStack
+  } catch {
+    $err = $_
+    if ($script:HaStoppedHome) {
+      $eksUp = $false
+      try { $eksUp = Test-EksHaContainerRunning } catch { $eksUp = $false }
+      if (-not $eksUp) {
+        try {
+          if ((Test-EksClusterPresent) -and (Test-EksHaPresent)) {
+            Use-Kubeconfig
+            Stop-EksHa
+          }
+          Start-HomeHa
+        } catch {
+          Write-Host "  FAIL  Home Assistant at home did not restart. Run: docker compose up -d --no-deps homeassistant" -ForegroundColor Red
+        }
+      }
+    }
+    throw $err
+  }
+}
+
+function Invoke-UpStack {
   Assert-Session
   $alertEmail = Get-AlertEmail
   if (-not $SkipTerraform) {
@@ -191,6 +235,9 @@ function Do-Up {
       Write-Host "  SNS alert_email is set; the plan includes the email subscription"
     } else {
       Write-Host "  WARN  No alert email. Terraform will not create an SNS email subscription." -ForegroundColor Yellow
+    }
+    if ($WithHA) {
+      $planArgs += @("-var", "enable_ha_migration=true")
     }
     $planArgs += "-out=up.tfplan"
     & terraform @planArgs
@@ -272,6 +319,10 @@ spec:
     syncOptions:
       - CreateNamespace=true
 "@
+  if ($WithHA) {
+    Invoke-WithHaCluster -EbsKey $ebsKey
+    $app = Add-HaSensorValues $app
+  }
   $app | kubectl apply -f -; Check-Exit "sensor-service app"
   $mon = Join-Path $RepoRoot "gitops\eks\monitoring.yaml"     # Phase 4 adds this file
   if (-not (Test-Path $mon)) { $mon = Join-Path $RepoRoot "gitops\apps\monitoring.yaml" }
@@ -307,6 +358,10 @@ function Do-Verify {
   if ($h -match '"status":\s*"ok"') { Ok "healthz $h" } else { Bad "healthz returned: $h" }
   $c = curl.exe -s -o NUL -w "%{http_code}" "https://$AppFqdn/readings"
   if ($c -eq "200") { Ok "/readings 200" } else { Bad "/readings $c" }
+  if ($WithHA) {
+    $r = curl.exe -s "https://$AppFqdn/readings"
+    if ($r -match '"source":\s*"homeassistant"') { Ok "readings source homeassistant" } else { Bad "readings source is not homeassistant" }
+  }
   try {
     $b = Invoke-RestMethod -Method Post -Uri "https://$AppFqdn/audit/batches" -ContentType "application/json" -Body (@{ name = "verify-$(Get-Date -Format yyyyMMdd-HHmmss)" } | ConvertTo-Json)
     Ok "POST /audit/batches created id $($b.id) (RDS write works)"
@@ -325,6 +380,8 @@ function Do-Verify {
 
 function Do-Down {
   Assert-Session
+  if ($DryRun) { throw "-DryRun is only valid with up -WithHA." }
+  Invoke-HaReturnHomeIfNeeded
   $clusterExists = (aws eks list-clusters --query "length(clusters[?@=='grow-room-poc'])" --output text) -eq "1"
   if ($clusterExists) {
     Use-Kubeconfig
@@ -343,6 +400,9 @@ function Do-Down {
     Wait-Until { @((kubectl get nodeclaims -o json | ConvertFrom-Json).items).Count -eq 0 } "no NodeClaims" 900 15
 
     Step "5. Uninstall controllers (reverse of install)"
+    # Phase 8 release. Missing on a plain up, so --ignore-not-found keeps that path quiet.
+    # The config was already copied home. Delete the volume while the CSI addon still exists.
+    helm uninstall home-assistant -n grow-room --ignore-not-found
     helm uninstall external-dns -n kube-system --ignore-not-found
     helm uninstall argocd -n argocd --ignore-not-found
     helm uninstall external-secrets -n external-secrets --ignore-not-found

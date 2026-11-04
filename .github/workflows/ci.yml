@@ -22,6 +22,22 @@ jobs:
           version: v3.16.4
       - name: lint sensor chart
         run: helm lint charts/sensor-service
+      - name: lint home-assistant chart
+        run: |
+          helm lint charts/home-assistant
+          helm template home-assistant charts/home-assistant \
+            --set-string backupKey=ha-backups/20261103T120000Z.tar.gz \
+            --set-string persistence.ebsKmsKeyId=arn:aws:kms:us-west-2:590183769702:key/example \
+            >/tmp/ha-rendered.yaml
+          grep -q 'strategy:' /tmp/ha-rendered.yaml
+          grep -q 'type: Recreate' /tmp/ha-rendered.yaml
+          grep -q 'home-assistant_v2.db' /tmp/ha-rendered.yaml
+          grep -q 'alias/grow-room/telemetry' /tmp/ha-rendered.yaml || grep -q 'aws:kms' /tmp/ha-rendered.yaml
+          grep -q 'ClusterIP' /tmp/ha-rendered.yaml
+          if grep -q 'kind: Ingress' /tmp/ha-rendered.yaml; then
+            echo "Home Assistant must not be published on an ingress" >&2
+            exit 1
+          fi
       - name: lint and render kube-prometheus-stack values
         run: |
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts

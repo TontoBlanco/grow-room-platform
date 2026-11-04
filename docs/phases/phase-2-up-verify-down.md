@@ -78,6 +78,8 @@ If Terraform was already applied and you only need the Kubernetes half:
 
 Do not use `-AutoApprove` unless you have already read the plan. It skips the `yes` prompt.
 
+`-WithHA` is a different session. It moves Home Assistant onto the cluster and back on `down`. Plain `up` does not. The steps, the dry run, and the failure table are in [Phase 8](../aws-poc/PHASE8_HA_MIGRATION.md).
+
 ## Cost
 
 While `up` is in progress you are paying. `down` prints what it keeps: state bucket, state KMS key, OIDC roles, budget, hosted zone, and the Phase 3 telemetry stack. Those are the between-session costs. The NAT gateways and the cluster are not among them.
