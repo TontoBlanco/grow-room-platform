@@ -2,6 +2,10 @@
 # Dot-sourced. Plain up never calls these. Windows PowerShell 5.1, ASCII only.
 # Decisions live in ha_migration.py so the abort and single-copy rules are tested.
 # $HomeRunning, not $Home: HOME is read-only (VariableNotWritable) on Windows PowerShell 5.1.
+# Config folder order: -HaConfigPath, env GROW_HA_CONFIG_PATH, .env GROW_HA_CONFIG_PATH,
+# then the Home Assistant container's /config mount, then repo ha-config.
+# Stop and start use docker stop/start on that container. A \\wsl.localhost folder
+# is packed with wsl tar inside the distro. PowerShell does not pipe the tar bytes.
 
 function Resolve-HaPython {
   if ($script:HaPyExe) { return }
@@ -82,33 +86,337 @@ function Save-HaState {
   [IO.File]::WriteAllText((Get-HaStatePath), $json, $utf8)
 }
 
-function Test-HomeHaRunning {
-  $c = Get-HaConstants
-  $names = & docker compose --project-directory $RepoRoot ps --status running --services
-  if ($LASTEXITCODE -ne 0) { throw "docker compose ps failed. Start Docker Desktop and rerun." }
-  foreach ($name in @($names)) {
-    if (-not $name) { continue }
-    if ($name.Trim() -eq $c.compose_service) { return $true }
+function Get-WslExe {
+  $cmd = Get-Command wsl.exe -ErrorAction SilentlyContinue
+  if ($cmd -and $cmd.Source) { return $cmd.Source }
+  $fallback = Join-Path $env:SystemRoot "System32\wsl.exe"
+  if (Test-Path $fallback) { return $fallback }
+  throw "wsl.exe was not found. Pass -HaConfigPath pointing at a Windows folder, or install WSL."
+}
+
+function Get-WslDefaultDistro {
+  # wsl.exe -l -q writes UTF-16LE when stdout is a console and sometimes UTF-8
+  # when it is redirected. Read every byte (code page 28591) and let
+  # ha_migration.py decide. The default distro is the first name in that list.
+  if ($script:WslDefaultDistro) { return $script:WslDefaultDistro }
+  $exe = Get-WslExe
+  $info = New-Object System.Diagnostics.ProcessStartInfo
+  $info.FileName = $exe
+  $info.Arguments = "-l -q"
+  $info.UseShellExecute = $false
+  $info.RedirectStandardOutput = $true
+  $info.RedirectStandardError = $true
+  $info.CreateNoWindow = $true
+  $info.StandardOutputEncoding = [System.Text.Encoding]::GetEncoding(28591)
+  $wslProc = New-Object System.Diagnostics.Process
+  $wslProc.StartInfo = $info
+  $started = $false
+  try {
+    $started = $wslProc.Start()
+    if (-not $started) { throw "could not start wsl.exe" }
+    $latin = $wslProc.StandardOutput.ReadToEnd()
+    [void]$wslProc.StandardError.ReadToEnd()
+    $wslProc.WaitForExit()
+    if ($wslProc.ExitCode -ne 0) {
+      throw "wsl -l -q failed. Pass -HaConfigPath to skip auto-detect."
+    }
+  } finally {
+    if ($started) { $wslProc.Dispose() }
   }
+  $bytes = [System.Text.Encoding]::GetEncoding(28591).GetBytes($latin)
+  $b64 = [Convert]::ToBase64String($bytes)
+  Resolve-HaPython
+  $scriptPath = Join-Path $PSScriptRoot "ha_migration.py"
+  $out = & $script:HaPyExe @($script:HaPyPrefix) $scriptPath "wsl-distro" "--base64" $b64
+  if ($LASTEXITCODE -ne 0 -or -not $out) { throw "could not read the default WSL distro from wsl -l -q" }
+  $name = [string]($out | ConvertFrom-Json).distro
+  if (-not $name) { throw "wsl -l -q did not list a distribution. Pass -HaConfigPath." }
+  $script:WslDefaultDistro = $name
+  return $name
+}
+
+function Get-ExplicitHaConfigPath {
+  if ($HaConfigPath -and "$HaConfigPath".Trim()) { return "$HaConfigPath".Trim() }
+  if ($env:GROW_HA_CONFIG_PATH -and "$env:GROW_HA_CONFIG_PATH".Trim()) {
+    return "$env:GROW_HA_CONFIG_PATH".Trim()
+  }
+  $dotenv = Read-DotEnvValue (Join-Path $RepoRoot ".env") "GROW_HA_CONFIG_PATH"
+  if ($dotenv -and "$dotenv".Trim()) { return "$dotenv".Trim() }
+  return ""
+}
+
+function Resolve-HaInputPath {
+  param([string]$Path)
+  $text = "$Path".Trim()
+  if (-not $text) { return "" }
+  $rooted = $false
+  if ($text.StartsWith("\\") -or $text.StartsWith("/")) { $rooted = $true }
+  elseif ($text.Length -ge 2 -and $text[1] -eq ":" -and [char]::IsLetter($text[0])) { $rooted = $true }
+  if (-not $rooted) { return (Join-Path $RepoRoot $text) }
+  return $text
+}
+
+function Get-HaContainerRows {
+  $c = Get-HaConstants
+  $service = [string]$c.compose_service
+  $byService = & docker ps -aq --filter "label=com.docker.compose.service=$service" 2>$null
+  if ($LASTEXITCODE -ne 0) { throw "docker ps failed. Start Docker Desktop and rerun." }
+  $byName = & docker ps -aq --filter "name=$service" 2>$null
+  if ($LASTEXITCODE -ne 0) { throw "docker ps failed. Start Docker Desktop and rerun." }
+  $idList = New-Object System.Collections.Generic.List[string]
+  $seen = @{}
+  foreach ($line in @($byService) + @($byName)) {
+    foreach ($id in ("$line" -split "\s+")) {
+      $trimmed = "$id".Trim()
+      if (-not $trimmed) { continue }
+      if ($seen.ContainsKey($trimmed)) { continue }
+      $seen[$trimmed] = $true
+      $idList.Add($trimmed)
+    }
+  }
+  if ($idList.Count -eq 0) { return }
+  $json = & docker inspect @($idList.ToArray()) 2>$null
+  if ($LASTEXITCODE -ne 0 -or -not $json) { throw "docker inspect failed for the Home Assistant container." }
+  $parsed = (@($json) -join "`n") | ConvertFrom-Json
+  $rows = @()
+  foreach ($item in @($parsed)) {
+    if (-not $item) { continue }
+    $containerName = [string]$item.Name
+    if ($containerName.StartsWith("/")) { $containerName = $containerName.Substring(1) }
+    $running = $false
+    if ($item.State -and $item.State.Running) { $running = $true }
+    $label = ""
+    if ($item.Config -and $item.Config.Labels) {
+      $label = [string]$item.Config.Labels.'com.docker.compose.service'
+    }
+    $source = ""
+    foreach ($mnt in @($item.Mounts)) {
+      if (-not $mnt) { continue }
+      $dest = [string]$mnt.Destination
+      if ($dest.EndsWith("/")) { $dest = $dest.TrimEnd("/") }
+      if ($dest -eq "/config") { $source = [string]$mnt.Source }
+    }
+    $rows += @{
+      name = $containerName
+      running = $running
+      service = $label
+      source = $source
+    }
+  }
+  return $rows
+}
+
+function Get-SelectedHaContainer {
+  if ($script:HaContainerPick) { return $script:HaContainerPick }
+  $rows = @(Get-HaContainerRows)
+  $picked = @{ name = ""; source = ""; running = $false; service = "" }
+  if ($rows.Count -gt 0) {
+    $choice = Invoke-HaJson "select-container" @{ containers = $rows }
+    $picked = @{
+      name = [string]$choice.name
+      source = [string]$choice.source
+      running = [bool]$choice.running
+      service = [string]$choice.service
+    }
+  }
+  $script:HaContainerPick = $picked
+  return $script:HaContainerPick
+}
+
+function Resolve-HaLayout {
+  if ($script:HaLayout) { return $script:HaLayout }
+  $explicit = ""
+  $rawExplicit = Get-ExplicitHaConfigPath
+  if ($rawExplicit) { $explicit = Resolve-HaInputPath $rawExplicit }
+  $picked = Get-SelectedHaContainer
+  $repo = Join-Path $RepoRoot ([string](Get-HaConstants).config_dir)
+  $resolved = Invoke-HaJson "resolve-config" @{
+    explicit = $explicit
+    mount_source = [string]$picked.source
+    distro = ""
+    repo_config = $repo
+  }
+  if ($resolved.need_distro) {
+    $distro = Get-WslDefaultDistro
+    $resolved = Invoke-HaJson "resolve-config" @{
+      explicit = $explicit
+      mount_source = [string]$picked.source
+      distro = $distro
+      repo_config = $repo
+    }
+  }
+  if ($resolved.need_distro -or -not [string]$resolved.path) {
+    throw "Could not resolve the Home Assistant config path. Pass -HaConfigPath or set GROW_HA_CONFIG_PATH."
+  }
+  $script:HaLayout = @{
+    ConfigPath = [string]$resolved.path
+    Origin = [string]$resolved.origin
+    ContainerName = [string]$picked.name
+  }
+  return $script:HaLayout
+}
+
+function Write-HaLayout {
+  $layout = Resolve-HaLayout
+  $shown = [string]$layout.ContainerName
+  if (-not $shown) { $shown = "(none)" }
+  Write-Host "  config path: $($layout.ConfigPath)"
+  Write-Host "  config origin: $($layout.Origin)"
+  Write-Host "  container: $shown"
+  return $layout
+}
+
+function Test-WslUncPath {
+  param([string]$Path)
+  return ("$Path".ToLower().StartsWith("\\wsl.localhost\"))
+}
+
+function Get-WslLinuxConfig {
+  param([string]$ConfigPath)
+  $probe = Join-Path ([IO.Path]::GetTempPath()) "ha-probe.tar.gz"
+  return (Invoke-HaJson "archive-plan" @{ config = $ConfigPath; archive = $probe; staged = "" })
+}
+
+function Test-HaDatabaseFile {
+  param([string]$DatabasePath)
+  if (Test-Path -LiteralPath $DatabasePath) { return $true }
+  $layout = Resolve-HaLayout
+  if (-not (Test-WslUncPath $layout.ConfigPath)) { return $false }
+  $plan = Get-WslLinuxConfig $layout.ConfigPath
+  if (-not $plan.use_wsl) { return $false }
+  $leaf = Split-Path -Leaf $DatabasePath
+  $linuxDb = ([string]$plan.linux_config).TrimEnd("/") + "/" + $leaf
+  $exe = Get-WslExe
+  & $exe -d ([string]$plan.distro) -u root -- /usr/bin/test -s $linuxDb
+  if ($LASTEXITCODE -eq 0) { return $true }
   return $false
 }
 
+function Get-HaDatabaseLength {
+  param([string]$DatabasePath)
+  if (Test-Path -LiteralPath $DatabasePath) {
+    return (Get-Item -LiteralPath $DatabasePath).Length
+  }
+  $layout = Resolve-HaLayout
+  $plan = Get-WslLinuxConfig $layout.ConfigPath
+  $leaf = Split-Path -Leaf $DatabasePath
+  $linuxDb = ([string]$plan.linux_config).TrimEnd("/") + "/" + $leaf
+  $exe = Get-WslExe
+  $bytes = & $exe -d ([string]$plan.distro) -u root -- /usr/bin/stat -c '%s' $linuxDb
+  if ($LASTEXITCODE -ne 0) { throw "could not read the size of $DatabasePath" }
+  return [int64]("$bytes".Trim())
+}
+
+function Invoke-WslArgv {
+  param([string]$Distro, [string[]]$Argv)
+  if (-not $Distro) { throw "WSL distro is empty" }
+  $exe = Get-WslExe
+  $flat = @()
+  foreach ($part in @($Argv)) {
+    if ($null -eq $part) { continue }
+    $flat += [string]$part
+  }
+  if ($flat.Count -eq 0) { throw "WSL command is empty" }
+  # -u root: the container writes home-assistant_v2.db as root. The default
+  # WSL user cannot always read or rename those files.
+  & $exe -d $Distro -u root -- @flat
+  if ($LASTEXITCODE -ne 0) {
+    throw "wsl -d $Distro -u root -- $($flat[0]) failed (exit $LASTEXITCODE)"
+  }
+}
+
+function Invoke-WslRestoreSteps {
+  param($Plan)
+  try {
+    foreach ($step in @($Plan.steps)) {
+      if ([string]$step.when -eq "rollback") { continue }
+      Invoke-WslArgv -Distro ([string]$Plan.distro) -Argv @($step.argv)
+    }
+  } catch {
+    foreach ($step in @($Plan.steps)) {
+      if ([string]$step.when -ne "rollback") { continue }
+      try {
+        Invoke-WslArgv -Distro ([string]$Plan.distro) -Argv @($step.argv)
+      } catch {
+        Write-Host "  WARN  could not move the previous Home Assistant config back" -ForegroundColor Yellow
+      }
+    }
+    throw
+  }
+}
+
+function Invoke-PackHaConfig {
+  param([string]$ConfigPath, [string]$Archive)
+  $plan = Invoke-HaJson "archive-plan" @{
+    config = $ConfigPath
+    archive = $Archive
+    staged = ""
+  }
+  if ($plan.use_wsl) {
+    Invoke-WslArgv -Distro ([string]$plan.distro) -Argv @($plan.pack)
+    Resolve-HaPython
+    $scriptPath = Join-Path $PSScriptRoot "ha_migration.py"
+    & $script:HaPyExe @($script:HaPyPrefix) $scriptPath "check-archive" "--archive" $Archive | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "wsl tar archive is missing the Home Assistant database" }
+    return
+  }
+  Resolve-HaPython
+  $scriptPath = Join-Path $PSScriptRoot "ha_migration.py"
+  & $script:HaPyExe @($script:HaPyPrefix) $scriptPath "pack" "--config" $ConfigPath "--output" $Archive | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "pack of the Home Assistant config folder failed" }
+}
+
+function Invoke-StageArchive {
+  param([string]$Archive, [string]$Dest)
+  Resolve-HaPython
+  $scriptPath = Join-Path $PSScriptRoot "ha_migration.py"
+  & $script:HaPyExe @($script:HaPyPrefix) $scriptPath "stage-archive" "--archive" $Archive "--dest" $Dest | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "checked extract of the Home Assistant archive failed" }
+}
+
+function Test-HomeHaRunning {
+  $layout = Resolve-HaLayout
+  $containerName = [string]$layout.ContainerName
+  if (-not $containerName) { return $false }
+  $state = & docker inspect -f "{{.State.Running}}" $containerName 2>$null
+  if ($LASTEXITCODE -ne 0) { return $false }
+  return ("$state".Trim().ToLower() -eq "true")
+}
+
 function Stop-HomeHa {
-  $c = Get-HaConstants
-  Step "Stop Home Assistant at home (docker compose service $($c.compose_service))"
-  & docker compose --project-directory $RepoRoot stop $c.compose_service
-  if ($LASTEXITCODE -ne 0) { throw "docker compose stop failed" }
+  $layout = Resolve-HaLayout
+  $containerName = [string]$layout.ContainerName
+  if (-not $containerName) {
+    throw "No Home Assistant container found (compose service homeassistant, or a name containing homeassistant). Refusing to run docker compose from this checkout."
+  }
+  Step "Stop Home Assistant container $containerName"
+  & docker stop $containerName
+  if ($LASTEXITCODE -ne 0) { throw "docker stop $containerName failed" }
   if (Test-HomeHaRunning) { throw "home Home Assistant is still running after stop" }
 }
 
 function Start-HomeHa {
-  $c = Get-HaConstants
   if (Test-EksHaContainerRunning) {
     throw "Refusing to start home Home Assistant while EKS Home Assistant is still running."
   }
-  Step "Start Home Assistant at home (docker compose service $($c.compose_service))"
-  & docker compose --project-directory $RepoRoot up -d --no-deps $c.compose_service
-  if ($LASTEXITCODE -ne 0) { throw "docker compose up failed" }
+  $layout = Resolve-HaLayout
+  $containerName = [string]$layout.ContainerName
+  if (-not $containerName) {
+    throw "No Home Assistant container found to start. Refusing to run docker compose from this checkout."
+  }
+  Step "Start Home Assistant container $containerName"
+  & docker start $containerName
+  if ($LASTEXITCODE -ne 0) { throw "docker start $containerName failed" }
+}
+
+function Get-HaStartHint {
+  try {
+    $layout = Resolve-HaLayout
+    if ($layout.ContainerName) { return "docker start $($layout.ContainerName)" }
+  } catch {
+    return "docker start <home-assistant-container>"
+  }
+  return "docker start <home-assistant-container>"
 }
 
 function Test-EksClusterPresent {
@@ -284,9 +592,11 @@ function Send-VerifiedBackup {
 
 function Backup-HomeConfigToS3 {
   $c = Get-HaConstants
-  $cfg = Join-Path $RepoRoot ([string]$c.config_dir)
+  $cfg = (Resolve-HaLayout).ConfigPath
   $db = Join-Path $cfg ([string]$c.db_name)
-  if (-not (Test-Path $db)) { throw "backup refused: database file is not in the config folder" }
+  if (-not (Test-HaDatabaseFile $db)) {
+    throw "backup refused: database file is not in the config folder ($db)"
+  }
   Resolve-HaPython
   $scriptPath = Join-Path $PSScriptRoot "ha_migration.py"
   $keyJson = & $script:HaPyExe @($script:HaPyPrefix) $scriptPath "object-key"
@@ -294,8 +604,7 @@ function Backup-HomeConfigToS3 {
   $key = [string]($keyJson | ConvertFrom-Json).key
   $archive = Join-Path ([IO.Path]::GetTempPath()) ("ha-" + [guid]::NewGuid().ToString("n") + ".tar.gz")
   try {
-    & $script:HaPyExe @($script:HaPyPrefix) $scriptPath "pack" "--config" $cfg "--output" $archive | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "pack of the Home Assistant config folder failed" }
+    Invoke-PackHaConfig -ConfigPath $cfg -Archive $archive
     Send-VerifiedBackup -Archive $archive -Key $key
   } finally {
     if (Test-Path $archive) { Remove-Item $archive -Force }
@@ -305,12 +614,16 @@ function Backup-HomeConfigToS3 {
 
 function Assert-HaMovePreflight {
   $c = Get-HaConstants
-  $cfg = Join-Path $RepoRoot ([string]$c.config_dir)
+  $cfg = (Resolve-HaLayout).ConfigPath
   $db = Join-Path $cfg ([string]$c.db_name)
-  if (-not (Test-Path $db)) { throw "Home Assistant database file is missing. Refusing to stop Home Assistant." }
+  if (-not (Test-HaDatabaseFile $db)) {
+    throw "Home Assistant database file is missing at $db. Refusing to stop Home Assistant."
+  }
   $present = Read-DotEnvValue (Join-Path $RepoRoot ".env") "HA_TOKEN"
   if (-not $present) { throw "HA_TOKEN is missing from .env. Refusing to stop Home Assistant." }
   $present = $null
+  # This only checks the compose file in this checkout. It does not select or stop
+  # the container. Stop and start use docker stop/start on the inspected name.
   $services = & docker compose --project-directory $RepoRoot config --services
   if ($LASTEXITCODE -ne 0) { throw "docker compose config failed. Start Docker Desktop." }
   $found = $false
@@ -334,13 +647,13 @@ function Assert-HaMovePreflight {
 }
 
 function Invoke-HaDryRunChecks {
+  $layout = Write-HaLayout
   Assert-HaMovePreflight
   $c = Get-HaConstants
-  $db = Join-Path (Join-Path $RepoRoot ([string]$c.config_dir)) ([string]$c.db_name)
-  $size = (Get-Item $db).Length
+  $db = Join-Path $layout.ConfigPath ([string]$c.db_name)
+  $size = Get-HaDatabaseLength $db
   $HomeRunning = Test-HomeHaRunning
   $snap = Get-EksHaSnapshot
-  Write-Host "  config dir: $($c.config_dir)"
   Write-Host "  database bytes: $size"
   Write-Host "  home running: $HomeRunning"
   Write-Host "  eks deployment present: $($snap.Present)"
@@ -376,13 +689,17 @@ function Invoke-WithHaPrepare {
     was_running = [bool]$HomeRunning
     already_on_eks = $false
   }
-  if ($plan.action -eq "refuse") { throw $plan.reason }
+  if ($plan.action -eq "refuse") {
+    $null = Write-HaLayout
+    throw $plan.reason
+  }
   if ($plan.action -eq "dry-run") {
     Invoke-HaDryRunChecks
     $script:HaDryRunStop = $true
     return
   }
   if ($plan.action -eq "already-on-eks") {
+    $null = Write-HaLayout
     $script:HaAlreadyOnEks = $true
     $script:HaUploadVerified = $true
     $state = Read-HaState
@@ -391,6 +708,7 @@ function Invoke-WithHaPrepare {
     return
   }
   if ($plan.action -ne "backup-then-move") { throw "unexpected up plan $($plan.action)" }
+  $null = Write-HaLayout
   Assert-HaMovePreflight
   try {
     if ($plan.stop_home) {
@@ -607,13 +925,36 @@ function Restore-HomeFromS3Key {
   } finally {
     Clear-HaBackupRole
   }
-  $cfg = Join-Path $RepoRoot ([string]$c.config_dir)
-  Resolve-HaPython
-  $scriptPath = Join-Path $PSScriptRoot "ha_migration.py"
-  & $script:HaPyExe @($script:HaPyPrefix) $scriptPath "restore-home" "--archive" $archive "--config" $cfg | Out-Null
-  $code = $LASTEXITCODE
-  if (Test-Path $archive) { Remove-Item $archive -Force }
-  if ($code -ne 0) { throw "restore into the home config folder failed" }
+  $cfg = (Resolve-HaLayout).ConfigPath
+  $probe = Invoke-HaJson "archive-plan" @{
+    config = $cfg
+    archive = $archive
+    staged = ""
+  }
+  if (-not $probe.use_wsl) {
+    Resolve-HaPython
+    $scriptPath = Join-Path $PSScriptRoot "ha_migration.py"
+    & $script:HaPyExe @($script:HaPyPrefix) $scriptPath "restore-home" "--archive" $archive "--config" $cfg | Out-Null
+    $code = $LASTEXITCODE
+    if (Test-Path $archive) { Remove-Item $archive -Force }
+    if ($code -ne 0) { throw "restore into the home config folder failed" }
+    return
+  }
+  $stage = Join-Path ([IO.Path]::GetTempPath()) ("ha-stage-" + [guid]::NewGuid().ToString("n"))
+  New-Item -ItemType Directory -Path $stage | Out-Null
+  try {
+    Invoke-StageArchive -Archive $archive -Dest $stage
+    $restorePlan = Invoke-HaJson "archive-plan" @{
+      config = $cfg
+      archive = $archive
+      staged = $stage
+    }
+    if (-not $restorePlan.use_wsl) { throw "WSL restore plan was not built" }
+    Invoke-WslRestoreSteps -Plan $restorePlan
+  } finally {
+    if (Test-Path $archive) { Remove-Item $archive -Force }
+    if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+  }
 }
 
 function Invoke-HaReturnHomeIfNeeded {
