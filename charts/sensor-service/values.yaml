@@ -19,7 +19,7 @@ podDisruptionBudget:
 image:
   repository: ghcr.io/tontoblanco/grow-room-platform
   # Prefer an immutable tag (git SHA) in GitOps; "latest" is fine for first local smoke.
-  tag: "sha-c8985e5"
+  tag: "sha-da4f875"
   pullPolicy: IfNotPresent
 
 # Leave empty for public GHCR packages. For private packages, create a
