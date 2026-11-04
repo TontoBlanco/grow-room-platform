@@ -1,6 +1,7 @@
 # scripts/aws-poc-ha.ps1 - Phase 8 helpers for scripts/aws-poc.ps1.
 # Dot-sourced. Plain up never calls these. Windows PowerShell 5.1, ASCII only.
 # Decisions live in ha_migration.py so the abort and single-copy rules are tested.
+# $HomeRunning, not $Home: HOME is read-only (VariableNotWritable) on Windows PowerShell 5.1.
 
 function Resolve-HaPython {
   if ($script:HaPyExe) { return }
@@ -337,11 +338,11 @@ function Invoke-HaDryRunChecks {
   $c = Get-HaConstants
   $db = Join-Path (Join-Path $RepoRoot ([string]$c.config_dir)) ([string]$c.db_name)
   $size = (Get-Item $db).Length
-  $home = Test-HomeHaRunning
+  $HomeRunning = Test-HomeHaRunning
   $snap = Get-EksHaSnapshot
   Write-Host "  config dir: $($c.config_dir)"
   Write-Host "  database bytes: $size"
-  Write-Host "  home running: $home"
+  Write-Host "  home running: $HomeRunning"
   Write-Host "  eks deployment present: $($snap.Present)"
   Write-Host "  eks container running: $($snap.Running)"
   Write-Host "  bucket: $($c.bucket)"
@@ -349,7 +350,7 @@ function Invoke-HaDryRunChecks {
   Write-Host "  kms alias: $($c.kms_alias)"
   Write-Host "  role: $($c.role_name)"
   Write-Host "  keep: $HaBackupKeep"
-  if ($home -and $snap.Running) { throw "Both copies are running. Dry run did not stop either one." }
+  if ($HomeRunning -and $snap.Running) { throw "Both copies are running. Dry run did not stop either one." }
   Write-Host "  would stop home, upload ha-backups/<timestamp>.tar.gz, then start one EKS copy"
 }
 
@@ -360,19 +361,19 @@ function Invoke-WithHaPrepare {
   $script:HaAlreadyOnEks = $false
   $script:HaUploadVerified = $false
   $script:HaBackupKey = ""
-  $home = Test-HomeHaRunning
-  $script:HaWasRunning = $home
+  $HomeRunning = Test-HomeHaRunning
+  $script:HaWasRunning = $HomeRunning
   $snap = Get-EksHaSnapshot
   $plan = Invoke-HaJson "plan-up" @{
     with_ha = $true
     dry_run = [bool]$DryRun
     phase = "preflight"
-    home_running = [bool]$home
+    home_running = [bool]$HomeRunning
     eks_running = [bool]$snap.Running
     backup_ok = $false
     upload_verified = $false
     home_stopped_by_us = $false
-    was_running = [bool]$home
+    was_running = [bool]$HomeRunning
     already_on_eks = $false
   }
   if ($plan.action -eq "refuse") { throw $plan.reason }
@@ -479,12 +480,12 @@ function Add-HaSensorValues {
 function Invoke-WithHaCluster {
   param([string]$EbsKey)
   $c = Get-HaConstants
-  $home = Test-HomeHaRunning
+  $HomeRunning = Test-HomeHaRunning
   $snap = Get-EksHaSnapshot
   $plan = Invoke-HaJson "plan-up" @{
     with_ha = $true
     phase = "before-eks"
-    home_running = [bool]$home
+    home_running = [bool]$HomeRunning
     eks_running = [bool]$snap.Running
     backup_ok = [bool]$script:HaUploadVerified
     upload_verified = [bool]$script:HaUploadVerified
@@ -630,10 +631,10 @@ function Invoke-HaReturnHomeIfNeeded {
   $moved = ($location -eq "eks" -or $location -eq "moving" -or [bool]$snap.Present)
   if (-not $moved) { return }
 
-  $home = Test-HomeHaRunning
+  $HomeRunning = Test-HomeHaRunning
   $plan = Invoke-HaJson "plan-down" @{
     phase = "preflight"
-    home_running = [bool]$home
+    home_running = [bool]$HomeRunning
     eks_running = [bool]$snap.Running
     ha_on_eks = [bool]$snap.Present
     location = $location
