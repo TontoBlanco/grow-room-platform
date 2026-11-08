@@ -69,7 +69,16 @@ function Use-Kubeconfig {
 function Confirm-Or-Stop([string]$q) {
   if ($AutoApprove) { return }
   $a = Read-Host "$q Type yes to continue"
-  if ($a -ne "yes") { throw "Stopped by you." }
+  # -ne is case-insensitive. yes, Yes, and YES continue. n, No, and Enter abort.
+  # The throw is what stops the paid apply. Restart home first when this run stopped it.
+  if ($a -ne "yes") {
+    try {
+      Restore-HomeHaIfThisRunStoppedIt "You did not type yes. The paid stack will not change."
+    } catch {
+      Write-Host "  FAIL  Home Assistant at home did not restart. Run: $(Get-HaStartHint)" -ForegroundColor Red
+    }
+    throw "Stopped by you."
+  }
 }
 
 function Get-AlertEmail {
@@ -182,9 +191,51 @@ function Remove-AvailableEnis([string]$VpcId) {
   return $deleted
 }
 
+function Restore-HomeHaIfThisRunStoppedIt {
+  param([string]$Because = "")
+  # The cost prompt and the up catch both call this. The second call is a no-op.
+  if ($script:HaRestartAttempted) { return }
+  # Set only after Stop-HomeHa in a -WithHA up. Plain up and down leave it false.
+  if (-not $script:HaStoppedHome) { return }
+  $script:HaRestartAttempted = $true
+  $eksUp = $false
+  try { $eksUp = Test-EksHaContainerRunning } catch { $eksUp = $false }
+  # The EKS container is the live copy. Do not start a second one at home.
+  if ($eksUp) {
+    Write-Host "  EKS Home Assistant is still running. The home container stays stopped." -ForegroundColor Yellow
+    return
+  }
+  if ($Because) { Write-Host "  $Because" -ForegroundColor Yellow }
+  $stoppedEks = $false
+  try {
+    if ((Test-EksClusterPresent) -and (Test-EksHaPresent)) {
+      Use-Kubeconfig
+      Stop-EksHa
+      $stoppedEks = $true
+    }
+    Start-HomeHa
+    $script:HaStoppedHome = $false
+  } catch {
+    Write-Host "  FAIL  Home Assistant at home did not restart. Run: $(Get-HaStartHint)" -ForegroundColor Red
+    return
+  }
+  # No EKS deployment was in play, so the live copy is home again.
+  # If we had to scale a deployment to zero, leave the state file alone.
+  # down already recovers that case without restoring over the folder.
+  if ($stoppedEks) { return }
+  $key = ""
+  if ($script:HaBackupKey) { $key = [string]$script:HaBackupKey }
+  try {
+    Save-HaState @{ location = "home"; backupKey = $key }
+  } catch {
+    Write-Host "  WARN  Home Assistant at home is started, but the move state file was not updated." -ForegroundColor Yellow
+  }
+}
+
 function Do-Up {
   if ($DryRun -and -not $WithHA) { throw "-DryRun is only valid with -WithHA." }
   $script:HaStoppedHome = $false
+  $script:HaRestartAttempted = $false
   if (-not $WithHA) {
     Invoke-UpStack
     return
@@ -200,20 +251,11 @@ function Do-Up {
     Invoke-UpStack
   } catch {
     $err = $_
-    if ($script:HaStoppedHome) {
-      $eksUp = $false
-      try { $eksUp = Test-EksHaContainerRunning } catch { $eksUp = $false }
-      if (-not $eksUp) {
-        try {
-          if ((Test-EksClusterPresent) -and (Test-EksHaPresent)) {
-            Use-Kubeconfig
-            Stop-EksHa
-          }
-          Start-HomeHa
-        } catch {
-          Write-Host "  FAIL  Home Assistant at home did not restart. Run: $(Get-HaStartHint)" -ForegroundColor Red
-        }
-      }
+    # The cost prompt throws "Stopped by you." Plan and apply failures land here too.
+    try {
+      Restore-HomeHaIfThisRunStoppedIt "This run stopped Home Assistant at home. Starting that copy again."
+    } catch {
+      Write-Host "  FAIL  Home Assistant at home did not restart. Run: $(Get-HaStartHint)" -ForegroundColor Red
     }
     throw $err
   }
