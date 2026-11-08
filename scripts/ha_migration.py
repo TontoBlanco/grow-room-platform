@@ -784,36 +784,19 @@ def archive_plan(config: str, archive: str, staged: str = "") -> dict:
     if staged.strip():
         linux_staged = windows_path_to_wsl(staged).rstrip("/") + "/."
         _reject_nested(linux_config, linux_staged)
-        # bash -c uses $1/$2 so a path with spaces is data, not a shell string.
+        # Direct mv arguments. Windows PowerShell 5.1 expands $1 and $2 in a
+        # bash -c script before bash starts, so those paths never reached mv.
+        # Rollback uses mv -T so a leftover .previous is not placed inside a
+        # config folder that is still present.
         steps = [
             {"argv": ["rm", "-rf", staging], "when": "always"},
             {"argv": ["mkdir", "-p", staging], "when": "always"},
             {"argv": ["cp", "-a", linux_staged, staging + "/"], "when": "always"},
             {"argv": ["/usr/bin/test", "-s", db_path], "when": "always"},
             {"argv": ["rm", "-rf", previous], "when": "always"},
-            {
-                "argv": [
-                    "bash",
-                    "-c",
-                    'if [ -e "$1" ]; then mv "$1" "$2"; fi',
-                    "bash",
-                    linux_config,
-                    previous,
-                ],
-                "when": "always",
-            },
+            {"argv": ["mv", linux_config, previous], "when": "always"},
             {"argv": ["mv", staging, linux_config], "when": "always"},
-            {
-                "argv": [
-                    "bash",
-                    "-c",
-                    'if [ ! -e "$1" ] && [ -e "$2" ]; then mv "$2" "$1"; fi',
-                    "bash",
-                    linux_config,
-                    previous,
-                ],
-                "when": "rollback",
-            },
+            {"argv": ["mv", "-T", previous, linux_config], "when": "rollback"},
         ]
     return {
         "use_wsl": True,

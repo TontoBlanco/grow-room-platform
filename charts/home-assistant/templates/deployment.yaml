@@ -7,6 +7,8 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  # dnf install plus the archive extract can exceed the 600s default.
+  progressDeadlineSeconds: 900
   # One RWO volume. A rolling update would try to mount it twice.
   strategy:
     type: Recreate
@@ -19,6 +21,9 @@ spec:
       labels:
         app.kubernetes.io/name: home-assistant
         app.kubernetes.io/instance: {{ .Release.Name }}
+      # A ConfigMap volume change does not roll this pod on its own.
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/scripts-configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: home-assistant
       initContainers:

@@ -443,7 +443,15 @@ function Do-Down {
     }
     $proc.WaitForExit()
     $proc.Refresh()
-    if ($proc.ExitCode -ne 0) { throw "destroy failed (exit $($proc.ExitCode))" }
+    # Windows PowerShell 5.1 often leaves ExitCode empty after
+    # Start-Process -NoNewWindow -PassThru. A missing code is not a failure.
+    # The leftover sweep below is the confirmation. A real non-zero code still throws.
+    $code = $proc.ExitCode
+    if ($null -eq $code -or "$code" -eq "") {
+      Write-Host "  WARN  terraform destroy reported no exit code. Continuing to the leftover sweep." -ForegroundColor Yellow
+    } elseif ($code -ne 0) {
+      throw "destroy failed (exit $code)"
+    }
     if ($vpcId) {
       $left = Remove-AvailableEnis $vpcId
       if ($left -eq 0) { Ok "available ENIs in $vpcId = 0 after destroy" }

@@ -3,6 +3,14 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
+# Slim still has zlib1g 1:1.3.dfsg+really1.3.1-1+b1. Debian security already
+# published 1:1.3.dfsg+really1.3.1-1+deb13u1 (DSA-6613-1) for CVE-2026-76844
+# and CVE-2026-85091. Leave the version unpinned so the next security upload
+# replaces it. Package lists are removed so they are not baked into the image.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install dependencies first so this layer caches between code changes
