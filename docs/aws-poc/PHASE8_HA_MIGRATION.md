@@ -129,6 +129,7 @@ kubectl config use-context k3d-grow-room-dev
 | What you see | What the script does | What you do |
 | --- | --- | --- |
 | Backup fails, or S3 does not match size, checksum, and `aws:kms` | `up` aborts. Terraform does not apply. If this move stopped the container, it runs `docker start` on that container. EKS Home Assistant is not installed. | Read the error. The config folder is still on disk. The message includes the path it checked. Fix Docker, the role, or the key, then dry-run again. |
+| You answer `Type yes to continue:` with anything but yes (`no`, `n`, `No`, or Enter) | The plan is not applied. If this `up -WithHA` stopped the home container and the EKS copy is not running, the script starts that same container. When no EKS Home Assistant deployment is present, it records the move as home. yes, Yes, and YES still continue into the paid apply. | Home Assistant at home should be running again. If the EKS copy was already serving, the home container stays stopped. |
 | Both copies are already running | The script refuses and changes nothing. | Stop the copy you do not want. Do not start the other one until the first is stopped. |
 | Home is still running at the moment EKS would start | EKS Home Assistant is not installed. | The stop did not stick. Start Docker, stop the Compose service, and do not start a second copy by hand. |
 | `down` cannot verify the EKS backup | EKS Home Assistant stays up. Compose is not started. Terraform destroy does not run. | The live config is still the pod. Fix the upload and run `down` again. |

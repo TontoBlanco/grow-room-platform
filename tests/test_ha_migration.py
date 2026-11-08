@@ -913,6 +913,62 @@ def test_powershell_resolves_ha_config_path_and_targets_the_container():
     assert down.index("while (-not $proc.HasExited)") < down.index("reported no exit code")
 
 
+def test_declining_the_cost_prompt_restarts_home_when_this_run_stopped_it():
+    """up -WithHA stops home before the paid-plan prompt. A non-yes answer must start it again."""
+    poc = POC.read_text(encoding="utf-8")
+    helper = HELPER.read_text(encoding="utf-8")
+    confirm = _powershell_function(poc, "Confirm-Or-Stop")
+    # The paid path still continues only for yes. Other answers throw before apply.
+    assert "if ($AutoApprove) { return }" in confirm
+    assert 'if ($a -ne "yes")' in confirm
+    assert 'if ($a -eq "no")' not in confirm
+    decline = confirm.index("Restore-HomeHaIfThisRunStoppedIt")
+    assert decline < confirm.index('throw "Stopped by you."')
+    assert "terraform" not in confirm.lower()
+    assert "up.tfplan" not in confirm
+
+    stack = _powershell_function(poc, "Invoke-UpStack")
+    assert stack.index('Confirm-Or-Stop "Apply this plan?') < stack.index(
+        'terraform "-chdir=$TfDir" apply'
+    )
+    down = _powershell_function(poc, "Do-Down")
+    assert 'Confirm-Or-Stop "Destroy everything in this plan?"' in down
+    assert "Stop-HomeHa" not in down
+
+    up = _powershell_function(poc, "Do-Up")
+    assert up.index("if (-not $WithHA)") < up.index("Invoke-WithHaPrepare")
+    with_ha = up.split("Invoke-WithHaPrepare", 1)[1]
+    assert with_ha.index("Invoke-UpStack") < with_ha.index("Restore-HomeHaIfThisRunStoppedIt")
+
+    restore = _powershell_function(poc, "Restore-HomeHaIfThisRunStoppedIt")
+    assert restore.index("if ($script:HaRestartAttempted) { return }") < restore.index(
+        "if (-not $script:HaStoppedHome)"
+    )
+    stopped = restore.index("if (-not $script:HaStoppedHome)")
+    assert stopped < restore.index("Test-EksHaContainerRunning")
+    assert "$script:HaRestartAttempted = $false" in up
+    eks_live = restore.index("EKS Home Assistant is still running")
+    assert restore.index("Test-EksHaContainerRunning") < eks_live
+    assert eks_live < restore.index("Start-HomeHa")
+    assert restore.index("Stop-EksHa") < restore.index("Start-HomeHa")
+    assert restore.index("Start-HomeHa") < restore.index("$script:HaStoppedHome = $false")
+    assert restore.index("Start-HomeHa") < restore.index('location = "home"')
+    assert restore.index("if ($stoppedEks) { return }") < restore.index('location = "home"')
+    assert "Save-HaState" in restore
+    # Reuse the helper that starts the inspected container. Do not compose-up a second copy.
+    start = _powershell_function(helper, "Start-HomeHa")
+    assert "docker start" in start
+    assert "Test-EksHaContainerRunning" in start
+    assert "& docker compose" not in start
+
+    prepare = _powershell_function(helper, "Invoke-WithHaPrepare")
+    assert prepare.index("Stop-HomeHa") < prepare.index("Backup-HomeConfigToS3")
+    assert prepare.index('if ($plan.stop_home)') < prepare.index("$script:HaStoppedHome = $true")
+    doc = (ROOT / "docs" / "aws-poc" / "PHASE8_HA_MIGRATION.md").read_text(encoding="utf-8")
+    assert "Type yes to continue:" in doc
+    assert "records the move as home" in doc
+
+
 def test_phase8_doc_covers_cost_data_and_failure_modes():
     doc = (ROOT / "docs" / "aws-poc" / "PHASE8_HA_MIGRATION.md").read_text(encoding="utf-8")
     assert "0.70" in doc
