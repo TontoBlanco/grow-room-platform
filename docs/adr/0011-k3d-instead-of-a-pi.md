@@ -23,7 +23,7 @@ Daily Kubernetes is k3d cluster `grow-room-dev` on the PC. The live service stay
 
 Good: I can rebuild the cluster from `scripts/bootstrap-k3d.sh` with no AWS charge. The simulator keeps demos working.
 
-Bad / accepted risk: the Grafana tent charts follow the laptop's power state. I have not built the always-on edge. Phase 8 on the roadmap is a backup of Home Assistant, not that Pi.
+Bad / accepted risk: the Grafana tent charts follow the laptop's power state. I have not built the always-on edge. Phase 8 is the Home Assistant move between the house and a short EKS session, and that paid verify is done. It is not this Pi.
 
 ## SAA exam tie-in
 

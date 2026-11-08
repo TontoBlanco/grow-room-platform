@@ -6,7 +6,7 @@ Home Assistant at home is one Docker Compose service. `docker-compose.yml` names
 
 On this PC the script runs from the Windows checkout `C:\src\grow-room-platform`, and Home Assistant runs from the WSL checkout. The container is `grow-room-platform-homeassistant-1`. Its `/config` mount is `/home/colem/src/grow-room-platform/ha-config`, which Windows sees as `\\wsl.localhost\Ubuntu\home\colem\src\grow-room-platform\ha-config`. `home-assistant_v2.db` is in that folder. A dry run that only looks at `C:\src\grow-room-platform\ha-config` reports the database missing and never reads the real one.
 
-`scripts/aws-poc.ps1 up` without `-WithHA` does not stop that container, does not read the folder, and does not install Home Assistant on EKS. Sensor-service on EKS stays on the simulator, the same as the November sessions.
+`scripts/aws-poc.ps1 up` without `-WithHA` does not stop that container, does not read the folder, and does not install Home Assistant on EKS. Sensor-service on EKS stays on the simulator, which is what the 1 November and 3 November sessions did. `up -WithHA` points sensor-service at Home Assistant for that session. The paid run, and the 8 November check where I typed `no`, are the [7 November test session](../test-session/2026-11-07.md). Those are two different days.
 
 ## Which folder is backed up
 
@@ -68,6 +68,8 @@ EKS is the paid part. `up` already warns about **0.70 USD per hour** while the s
 
 Run `down` before you leave the machine. `down` keeps the state bucket, the state key, the OIDC roles, the budget, the hosted zone, and the telemetry stack. The backup role is part of that telemetry stack. It does not add a second KMS key.
 
+The 7 November 2026 paid session is the [test session](../test-session/2026-11-07.md). `verify -WithHA` ended `ALL CHECKS PASSED`, and `down` destroyed 161 resources. Cost Explorer UnblendedCost from the 8 November read is pasted in [COSTS.md](COSTS.md), commit `2774570` at 8:32 AM MST. The commands use profile `GrowRoom`, the Cost Explorer API in `us-east-1`, daily granularity, and period `Start=2026-11-06,End=2026-11-09`. They do not pass `file://ce-filter.json`. The cluster was still `us-west-2`. Cost Explorer can lag up to 24 hours. [COSTS.md](COSTS.md) already says that. Daily totals: 2026-11-06 0.0672586299 USD, 2026-11-07 2.6880926014 USD, 2026-11-08 0.0170460668 USD. For 7 November, service groups greater than 0.01 USD: AWS Key Management Service 0.0986111119, AWS WAF 0.0315379174, EC2 - Other 0.7230693192, Amazon Elastic Compute Cloud - Compute 0.7643948866, Amazon Elastic Container Service for Kubernetes 0.318104639, Amazon Elastic Load Balancing 0.0225053118, Amazon Relational Database Service 0.1199012534, Amazon Virtual Private Cloud 0.241474528, and AmazonCloudWatch 0.36555855. The session and service tables in that file are still mostly blank, including the 1 November and 3 November dollar cells. On 8 November I typed `no` at `Type yes to continue:` and Terraform did not apply. That check is the last section of the same test session, so it stays separate from the 7 November bill.
+
 ## Before you pay
 
 Apply the telemetry root once so the role `grow-room-ha-backup` exists. That apply does not create EKS. Then run the dry run. It checks Docker, the resolved database file, the role, the bucket prefix, and the KMS alias. It prints the config path and the container name. It does not stop Home Assistant, upload, or apply Terraform.
@@ -123,6 +125,8 @@ kubectl config use-context k3d-grow-room-dev
 ```
 
 `down` does not need `-WithHA`. If a move is in progress it reverses that move, then tears the stack down. Your k3d context name on this PC is `k3d-grow-room-dev`. `up` points kubectl at EKS. The last command puts it back.
+
+I ran this paid order on 7 November 2026. `verify -WithHA` ended `ALL CHECKS PASSED`. The hand fixes from that day, and the 8 November run where I typed `no`, are the [test session](../test-session/2026-11-07.md). There is no screenshot of either day in the repo.
 
 ## Failure modes
 

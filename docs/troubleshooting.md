@@ -66,4 +66,5 @@ The sidecar now runs the Roles Anywhere helper and serves a container-credential
 | Drill order and `SensorDataStale` | [Phase 4](phases/phase-4-slos-and-drills.md) and [DRILLS.md](aws-poc/DRILLS.md) |
 | Signing and Kyverno | [Phase 5](phases/phase-5-supply-chain.md) |
 | The 3 November emails | [Test session](test-session/2026-11-03.md) |
+| Phase 8 move, the 7 November hand fixes, and the 8 November `no` | [Test session](test-session/2026-11-07.md) |
 | Athena plugin, restart, and credentials | [Athena in Grafana](ATHENA_GRAFANA.md) and [Phase 3](phases/phase-3-telemetry.md) |

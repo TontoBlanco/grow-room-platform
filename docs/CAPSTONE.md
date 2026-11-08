@@ -44,6 +44,7 @@ what I had done.
 | Week 5: Audit history | Plant/batch API, state-machine transitions, hash-chained events on SQLite (optional Postgres), integrity check, documentation |
 | AWS proof of concept | `infra/aws-poc` in `us-west-2`, applied for a session and then destroyed. First session 1 November 2026. Paid test session 3 November 2026 passed. |
 | Phases 3–7 | Telemetry, alerts and drills, image signing, cost records, and Ansible. Done. |
+| Phase 8 | Home Assistant move with `up -WithHA`. Paid verify 7 November 2026: `verify -WithHA` ended `ALL CHECKS PASSED`, then teardown of 161 resources. Hotfixes are pull requests #101 and #103, both merged. |
 | Growth stage | `GROW_STAGE` and the VPD target band. Pull request #77, merged 3 November 2026. |
 
 The day-to-day lab still runs on the laptop. Kubernetes there is k3d. The
@@ -52,13 +53,15 @@ stays local so a documentation week cannot start a bill.
 
 The EKS work is a different root, `infra/aws-poc`. I bring it up by phase
 with `scripts/aws-poc.ps1`, check it, and tear down the expensive resources
-before I stop. It is not a standing environment. Phases 3 through 7 are
-done. The S3, Glue, and Athena telemetry stack stays up and costs about
-1 USD per month. Local Grafana reads that archive on the **Grow-room
-History** board. Pull request
-[#80](https://github.com/TontoBlanco/grow-room-platform/pull/80) merged.
-The steps are in [Athena in Grafana](ATHENA_GRAFANA.md). I am not repeating
-the phase write-ups here. They are on the [documentation site](index.md). The 1 November screenshots are in
+before I stop. It is not a standing environment. Phases 3 through 8 are
+done. Phase 8 is the Home Assistant move. The paid verify on 7 November
+2026 is the [7 November test session](test-session/2026-11-07.md). The S3,
+Glue, and Athena telemetry stack stays up and costs about 1 USD per month.
+Local Grafana reads that archive on the **Grow-room History** board. Pull
+request [#80](https://github.com/TontoBlanco/grow-room-platform/pull/80)
+merged. The steps are in [Athena in Grafana](ATHENA_GRAFANA.md). I am not
+repeating the phase write-ups here. They are on the
+[documentation site](index.md). The 1 November screenshots are in
 [aws-poc/README.md](aws-poc/README.md). The 3 November record is the
 [test session](test-session/2026-11-03.md).
 
@@ -92,8 +95,10 @@ That separation was deliberate. I didn't want my CI tests or Kubernetes
 deployments to depend on a controller in my house, my local network, or a
 Home Assistant access token. The simulator keeps the cluster reproducible.
 The Compose instance lets me use real readings without putting household
-credentials into the GitOps configuration. The AWS proof of concept used
-the same simulator. It did not move the tent path into EKS.
+credentials into the GitOps configuration. A plain AWS `up` still uses
+that simulator. `up -WithHA` moves Home Assistant onto EKS for the session
+and points sensor-service at it. The paid verify is the
+[7 November test session](test-session/2026-11-07.md).
 
 ## AWS deployment (proof of concept)
 
@@ -106,6 +111,62 @@ of the day. Karpenter and the ClusterSecretStore
 are in [`k8s/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/k8s/aws-poc). The write-up, architecture diagram,
 and the rest of the screenshots are in
 [aws-poc/README.md](aws-poc/README.md).
+
+Phase 8 moved Home Assistant with one paid session and brought it home
+again. On 7 November 2026 I ran `up -WithHA`. `verify -WithHA` ended
+`ALL CHECKS PASSED`. `down` destroyed 161 Terraform resources. The leftover
+sweep was 0 for EKS clusters, load balancers, NAT gateways, Elastic IPs,
+running instances, unattached EBS volumes, available ENIs, RDS instances,
+and EKS log groups. Home Assistant was back on container
+`grow-room-platform-homeassistant-1`. kubectl was on `k3d-grow-room-dev`.
+
+That run hit problems I fixed by hand. Pull request
+[#101](https://github.com/TontoBlanco/grow-room-platform/pull/101)
+("Fix the Nov 7 Home Assistant migration session failures") merged at
+5:45 PM MST the same day, commit `56c95d87`. The session fixes are
+`restore.sh` using `sha256sum` and installing `tar` and `gzip` with `dnf`,
+then `yum`, then `microdnf`; a ConfigMap checksum and
+`progressDeadlineSeconds` 900; `kubectl cp` to a relative leaf, piped to
+`Out-Null`; direct `mv` in `ha_migration.py`, with rollback `mv -T`; and
+`aws-poc.ps1` treating a null `Start-Process` `ExitCode` as a warning so
+the leftover sweep still runs. The same pull request upgrades `zlib1g` for
+DSA-6613-1. The code before the session was pull requests
+[#95](https://github.com/TontoBlanco/grow-room-platform/pull/95)
+("Move Home Assistant onto EKS with aws-poc up -WithHA", merged 3 November
+2026 at 6:08 PM MST),
+[#97](https://github.com/TontoBlanco/grow-room-platform/pull/97)
+("Fix PowerShell 5.1 $HOME collision on aws-poc -WithHA", merged 3 November
+2026 at 6:27 PM MST), and
+[#99](https://github.com/TontoBlanco/grow-room-platform/pull/99)
+("Find the Home Assistant config when Compose runs from WSL", merged
+4 November 2026 at 7:33 AM MST). All three were already merged.
+
+On 8 November I pulled `main` through `6f41afa` and typed `no` at
+`Type yes to continue:` during `up -WithHA`. The script printed
+`You did not type yes. The paid stack will not change.`, started
+`grow-room-platform-homeassistant-1` again, and threw `Stopped by you.`
+Terraform apply did not run. That is pull request
+[#103](https://github.com/TontoBlanco/grow-room-platform/pull/103)
+("Restart home Home Assistant when the paid up prompt is declined"),
+merged 7 November 2026 at 10:04 PM MST, commit `6f41afa`. The 8 November
+check is on the 7 November test-session page so the two days stay separate.
+
+Cost Explorer UnblendedCost from the 8 November read is in
+[aws-poc/COSTS.md](aws-poc/COSTS.md), commit `2774570` at 8:32 AM MST.
+The pasted commands use profile `GrowRoom`, the Cost Explorer API in
+`us-east-1`, daily granularity, and period
+`Start=2026-11-06,End=2026-11-09`. They do not pass `file://ce-filter.json`.
+The cluster was still `us-west-2`. Cost Explorer can lag up to 24 hours.
+Daily totals: 2026-11-06 0.0672586299 USD, 2026-11-07 2.6880926014 USD,
+2026-11-08 0.0170460668 USD. For 7 November, service groups greater than
+0.01 USD: AWS Key Management Service 0.0986111119, AWS WAF 0.0315379174,
+EC2 - Other 0.7230693192, Amazon Elastic Compute Cloud - Compute
+0.7643948866, Amazon Elastic Container Service for Kubernetes 0.318104639,
+Amazon Elastic Load Balancing 0.0225053118, Amazon Relational Database
+Service 0.1199012534, Amazon Virtual Private Cloud 0.241474528, and
+AmazonCloudWatch 0.36555855. The session and service tables are still
+mostly blank. The 1 November and 3 November dollar cells are blank. The
+script's about 0.70 USD per hour line is a planning warning, not that read.
 
 Route 53 and ExternalDNS pointed `app.mygrowroom.click` at a regional WAF
 web ACL, then an internet-facing ALB. The ALB used an ACM certificate, TLS
@@ -468,8 +529,10 @@ session and leaves the rest open. The detail is on the
 - A standing cluster. I apply EKS, three NAT gateways, and Multi-AZ RDS for
   a session, then destroy them. CI does not apply `infra/aws-poc` on its
   own. Apply is a manual workflow, and the script asks me to type `yes`.
-- Running the Home Assistant token inside an Argo-managed pod. AWS pods use
-  the simulator.
+- Putting the Home Assistant token in Git or in a committed Helm value.
+  `up -WithHA` applies it as a Kubernetes secret at runtime from the
+  gitignored `.env`. Plain `up` still runs the simulator. The 7 November
+  session is the paid verify of the move.
 - A state traceability integration.
 - Kyverno set to Enforce. CI does sign images with keyless cosign, and the
   policy is in Audit. See [Phase 5](phases/phase-5-supply-chain.md).
@@ -477,8 +540,9 @@ session and leaves the rest open. The detail is on the
   a single database process. Session RDS is destroyed with the stack.
 - A Raspberry Pi beside the tent. An always-on edge running Home Assistant
   and sensor-service would keep `grow-room-ha-host` scraping while the laptop
-  sleeps. I have not built that. Phase 8 on the roadmap is a backup of Home
-  Assistant, not that machine.
+  sleeps. I have not built that. Phase 8 is the Home Assistant move between
+  the house and a short EKS session. That paid verify is done. It is not
+  this always-on machine.
 - SSO, mTLS, WORM storage, external timestamps, or an independently anchored
   audit chain.
 - A security authorization, STIG assessment, or FedRAMP claim.
@@ -532,7 +596,10 @@ When I walk someone through the capstone, I use this order:
    the [documentation site](index.md): what CI validates, what runs on k3d,
    what a paid session in `us-west-2` includes, and what `down` leaves
    behind. The 1 November screenshots stay in
-   [aws-poc/README.md](aws-poc/README.md).
+   [aws-poc/README.md](aws-poc/README.md). The 7 November record, including
+   the 8 November prompt where I typed `no`, is the
+   [test session](test-session/2026-11-07.md). There is no screenshot for
+   that day in the repo.
 
 The supporting commands are in the Week 2–5 guides. The AWS evidence is
 [aws-poc/README.md](aws-poc/README.md). If I expand the project, my

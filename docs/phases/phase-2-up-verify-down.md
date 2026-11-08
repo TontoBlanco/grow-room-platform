@@ -78,7 +78,7 @@ If Terraform was already applied and you only need the Kubernetes half:
 
 Do not use `-AutoApprove` unless you have already read the plan. It skips the `yes` prompt.
 
-`-WithHA` is a different session. It moves Home Assistant onto the cluster and back on `down`. Plain `up` does not. The steps, the dry run, and the failure table are in [Phase 8](../aws-poc/PHASE8_HA_MIGRATION.md).
+`-WithHA` is a different session. It moves Home Assistant onto the cluster and back on `down`. Plain `up` does not. The steps, the dry run, and the failure table are in [Phase 8](../aws-poc/PHASE8_HA_MIGRATION.md). The paid run on 7 November 2026, and the 8 November check where I typed `no`, are the [test session](../test-session/2026-11-07.md).
 
 ## Cost
 

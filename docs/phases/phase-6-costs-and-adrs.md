@@ -4,7 +4,13 @@ Pull request [#58](https://github.com/TontoBlanco/grow-room-platform/pull/58) ad
 
 ## What I built
 
-The cost file has tables for sessions, services, and the resources that stay up between sessions. Every measured cell is still blank. I have not written a Cost Explorer total into that file yet. The 1 November console screenshot in the gallery showed 0.01 USD month-to-date at the moment of the shot. That is not the session cost. Cost Explorer lags.
+The cost file has tables for sessions, services, and the resources that stay up between sessions. Those table cells are still mostly blank. On 8 November 2026 I pasted a Cost Explorer read under the query section, commit `2774570` at 8:32 AM MST. I did not copy those numbers into the 1 November or 3 November dollar cells. Both of those cells are still blank. There is no 7 November row in the session table.
+
+The pasted commands call the Cost Explorer API in `us-east-1` with profile `GrowRoom`, metric UnblendedCost, and daily granularity. The period is `Start=2026-11-06,End=2026-11-09`. They do not pass `file://ce-filter.json`. The `Project=grow-room` filter at the top of [COSTS.md](../aws-poc/COSTS.md) is not what those two commands ran. The cluster was still `us-west-2`. Cost Explorer can lag up to 24 hours. The file already says that.
+
+Daily UnblendedCost from that read: 2026-11-06 0.0672586299 USD, 2026-11-07 2.6880926014 USD, 2026-11-08 0.0170460668 USD. For 7 November, service groups greater than 0.01 USD: AWS Key Management Service 0.0986111119, AWS WAF 0.0315379174, EC2 - Other 0.7230693192, Amazon Elastic Compute Cloud - Compute 0.7643948866, Amazon Elastic Container Service for Kubernetes 0.318104639, Amazon Elastic Load Balancing 0.0225053118, Amazon Relational Database Service 0.1199012534, Amazon Virtual Private Cloud 0.241474528, and AmazonCloudWatch 0.36555855. Amounts at or under 0.01 USD are not in that list, so the lines are not a full sum of the day.
+
+The 1 November console screenshot in the gallery showed 0.01 USD month-to-date at the moment of the shot. That is not the session cost. The script's about 0.70 USD per hour line is still a planning warning. It is not the 7 November UnblendedCost above. The paid session is the [7 November test session](../test-session/2026-11-07.md). The 8 November check on that page typed `no` and did not apply Terraform. I am not calling the 8 November daily figure, 0.0170460668 USD, the price of that prompt. The read was 8:32 AM MST, and the lag above still applies.
 
 The decision records:
 
@@ -51,9 +57,9 @@ Set-Location C:\src\grow-room-platform
 aws ce get-cost-and-usage --time-period Start=2026-11-03,End=2026-11-04 --granularity DAILY --metrics UnblendedCost --group-by Type=DIMENSION,Key=SERVICE
 ```
 
-Use a profile that can read billing. Write the numbers into `docs/aws-poc/COSTS.md`. Leave a cell blank if you did not measure it. Do not invent the hourly rate.
+Use a profile that can read billing. Write the numbers into `docs/aws-poc/COSTS.md`. Leave a cell blank if you did not measure it. Do not invent the hourly rate. The read that is already in the file is the 8 November pair above. It is not this 3 November example, and it does not pass `file://ce-filter.json`.
 
-The tag the file asks for is `Project = grow-room`. The provider default tags in `infra/aws-poc` set `Project` to `grow-room`. The tag has to be activated as a cost allocation tag in Billing before Cost Explorer can filter on it. I have not recorded that activation as done.
+The tag the file asks for is `Project = grow-room`. The provider default tags in `infra/aws-poc` set `Project` to `grow-room`. The tag has to be activated as a cost allocation tag in Billing before Cost Explorer can filter on it. I have not recorded that activation as done. The 8 November commands did not use that filter.
 
 ## Cost
 
@@ -61,4 +67,4 @@ Writing the files is free. The API request is the warning above. The resources t
 
 ## What I learned
 
-A blank cell is more honest than a remembered price. The script says about 0.70 USD per hour. Until Cost Explorer fills the table, that sentence stays a warning, not a result. I would rather show the empty table than a precise number I cannot point at.
+A blank cell is more honest than a remembered price. The 1 November and 3 November dollar cells are still blank. The 8 November paste is a Cost Explorer read for 6–8 November, and it sits under the query. The script's about 0.70 USD per hour line stays a planning warning. The UnblendedCost figures above are the read I can point at.
