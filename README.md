@@ -24,10 +24,14 @@ cluster is not.
 - **AWS proof of concept, one session at a time.** `infra/aws-poc` in
   `us-west-2`. I apply it with `scripts/aws-poc.ps1` when I am ready to pay,
   and I run `down` before I stop. The first apply was 1 November 2026. The
-  paid test session on 3 November 2026 passed, including teardown. It is not
-  a cluster I leave running. Phases 3 through 7 are done. The record is the
+  paid test session on 3 November 2026 passed, including teardown. Phase 8
+  is done on the code and on a paid verify. On 7 November 2026
+  `up -WithHA`, `verify -WithHA` (`ALL CHECKS PASSED`), and `down` moved
+  Home Assistant to EKS and back. It is not a cluster I leave running.
+  Phases 3 through 8 are done. The record is the
   [documentation site](docs/index.md), the
-  [3 November test session](docs/test-session/2026-11-03.md), and the
+  [3 November test session](docs/test-session/2026-11-03.md), the
+  [7 November test session](docs/test-session/2026-11-07.md), and the
   [1 November gallery](docs/aws-poc/README.md).
 - **Telemetry that stays up.** `infra/telemetry` stores readings in S3 for
   Athena. It costs about 1 USD per month. `down` does not remove it. See
@@ -62,15 +66,20 @@ monitoring stack.
 | Containers and CI | Docker image, Ruff, pytest with an 80% coverage threshold, GHCR publishing, and Trivy scanning |
 | Kubernetes and GitOps | k3d cluster, Helm chart, Argo CD app-of-apps, and image-tag update PRs |
 | Infrastructure as code | Local Terraform modules checked with `fmt`, `validate`, and `tflint`. A separate root, `infra/aws-poc`, is what I apply for a paid session and then destroy. |
-| AWS proof of concept | VPC across 3 AZs, EKS 1.36, ALB, WAF, ACM, Route 53, RDS PostgreSQL Multi-AZ, Secrets Manager, KMS, S3, Glue, Athena, Karpenter, and a $25 budget. Brought up by phase, not left running. Gallery in `docs/aws-poc/`. |
+| AWS proof of concept | VPC across 3 AZs, EKS 1.36, ALB, WAF, ACM, Route 53, RDS PostgreSQL Multi-AZ, Secrets Manager, KMS, S3, Glue, Athena, Karpenter, and a $25 budget. Brought up by phase, not left running. Phase 8 paid verify was 7 November 2026. Gallery in `docs/aws-poc/`. |
 | Telemetry | S3, Glue, and Athena in `infra/telemetry`, kept between sessions, about 1 USD per month |
 | Observability | Prometheus, Grafana Grow-room VPD dashboard, plant-mood gauge, three alert rules, and two lab SLOs |
 | Audit history | SQLite-backed plant/batch events with state-transition checks and a SHA-256 hash chain |
 
-I built the lab over five weeks, then seven numbered phases. Phases 3
-through 7 are done. The page for each one is on the
+I built the lab over five weeks, then eight numbered phases. Phases 3
+through 8 are done. Phase 8 is the Home Assistant move. The paid verify
+was 7 November 2026, with hotfixes in pull requests
+[#101](https://github.com/TontoBlanco/grow-room-platform/pull/101) and
+[#103](https://github.com/TontoBlanco/grow-room-platform/pull/103). The
+page for each phase is on the
 [documentation site](docs/index.md). The 1 November gallery is
-[docs/aws-poc/README.md](docs/aws-poc/README.md).
+[docs/aws-poc/README.md](docs/aws-poc/README.md). The 7 November record is
+[docs/test-session/2026-11-07.md](docs/test-session/2026-11-07.md).
 
 ## How it fits together
 
@@ -107,8 +116,9 @@ version kept in the repo.
 I do not leave this stack running. `scripts/aws-poc.ps1 up` applies
 `infra/aws-poc` in `us-west-2`, `verify` checks it, and `down` removes the
 expensive resources. The public name during a session is
-`app.mygrowroom.click`. Pods run the simulator. Live tent data stays on
-Compose.
+`app.mygrowroom.click`. A plain `up` runs the simulator, and live tent
+data stays on Compose. `up -WithHA` moves Home Assistant for that session.
+That paid verify is Phase 8, below.
 
 The first session was 1 November 2026, and I destroyed it the same day.
 The paid test session on 3 November 2026 passed: verify, the email alert
@@ -117,7 +127,69 @@ Teardown was clean. Cleanup from that day is pull request
 [#75](https://github.com/TontoBlanco/grow-room-platform/pull/75), which is
 merged. How the phases fit is
 [Phase 2](docs/phases/phase-2-up-verify-down.md). The session record is
-[the test session page](docs/test-session/2026-11-03.md).
+[the 3 November test session](docs/test-session/2026-11-03.md).
+
+Phase 8 is the Home Assistant move, and that paid verify is done. On
+7 November 2026 (America/Denver, MST) I ran `up -WithHA`, then
+`verify -WithHA`, which ended `ALL CHECKS PASSED`, then `down`. Terraform
+destroyed 161 resources. The leftover sweep was 0 for EKS clusters, load
+balancers, NAT gateways, Elastic IPs, running instances, unattached EBS
+volumes, available ENIs, RDS instances, and EKS log groups. Home Assistant
+was running again at home as `grow-room-platform-homeassistant-1`, and
+kubectl was pointed back at `k3d-grow-room-dev`.
+
+That run hit problems I fixed by hand. Those fixes landed in pull request
+[#101](https://github.com/TontoBlanco/grow-room-platform/pull/101)
+("Fix the Nov 7 Home Assistant migration session failures"), merged at
+5:45 PM MST the same day, commit `56c95d87`. The fixes are `restore.sh`
+using `sha256sum` and installing `tar` and `gzip` with `dnf`, then `yum`,
+then `microdnf`; a ConfigMap checksum and `progressDeadlineSeconds` 900;
+`kubectl cp` to a relative leaf, piped to `Out-Null`; direct `mv` in
+`ha_migration.py`, with rollback `mv -T`; and `aws-poc.ps1` treating a
+null `Start-Process` `ExitCode` as a warning so the leftover sweep still
+runs. The same pull request upgrades `zlib1g` in the app image for
+DSA-6613-1. The write-up is the
+[7 November test session](docs/test-session/2026-11-07.md).
+
+The code that session started from was already merged. Pull request
+[#95](https://github.com/TontoBlanco/grow-room-platform/pull/95)
+("Move Home Assistant onto EKS with aws-poc up -WithHA") merged
+3 November 2026 at 6:08 PM MST. Pull request
+[#97](https://github.com/TontoBlanco/grow-room-platform/pull/97)
+("Fix PowerShell 5.1 $HOME collision on aws-poc -WithHA") merged
+3 November 2026 at 6:27 PM MST. Pull request
+[#99](https://github.com/TontoBlanco/grow-room-platform/pull/99)
+("Find the Home Assistant config when Compose runs from WSL") merged
+4 November 2026 at 7:33 AM MST.
+
+On 8 November I pulled `main` through `6f41afa` and ran `up -WithHA`
+again. Pull request
+[#103](https://github.com/TontoBlanco/grow-room-platform/pull/103)
+("Restart home Home Assistant when the paid up prompt is declined") had
+merged at 10:04 PM MST on 7 November. I typed `no` at
+`Type yes to continue:`. The script printed `You did not type yes. The paid stack will not change.`,
+started `grow-room-platform-homeassistant-1` again, and threw
+`Stopped by you.` Terraform apply did not run. That check is not the
+7 November bill. It is on the same test-session page so the two days stay
+separate.
+
+Cost Explorer UnblendedCost from the 8 November read is pasted in
+[docs/aws-poc/COSTS.md](docs/aws-poc/COSTS.md) (commit `2774570`, 8:32 AM
+MST). The commands use profile `GrowRoom`, the Cost Explorer API in
+`us-east-1`, daily granularity, and period `Start=2026-11-06,End=2026-11-09`.
+They do not pass `file://ce-filter.json`. That is not the
+`Project=grow-room` filter described at the top of the file. The cluster
+was still `us-west-2`. Cost Explorer can lag up to 24 hours. Daily totals:
+2026-11-06 0.0672586299 USD, 2026-11-07 2.6880926014 USD, and 2026-11-08
+0.0170460668 USD. For 7 November, service groups greater than 0.01 USD:
+AWS Key Management Service 0.0986111119, AWS WAF 0.0315379174, EC2 - Other
+0.7230693192, Amazon Elastic Compute Cloud - Compute 0.7643948866, Amazon
+Elastic Container Service for Kubernetes 0.318104639, Amazon Elastic Load
+Balancing 0.0225053118, Amazon Relational Database Service 0.1199012534,
+Amazon Virtual Private Cloud 0.241474528, and AmazonCloudWatch 0.36555855.
+The session and service tables in that file are still mostly blank. The
+1 November and 3 November dollar cells are blank. The script's about
+0.70 USD per hour line is a planning warning, not this read.
 
 What stays up after `down` is the state bucket, the state KMS key, the
 GitHub OIDC roles, the budget, the hosted zone, and the telemetry stack
@@ -597,7 +669,8 @@ at in Git are on the [controls page](docs/security/controls.md).
 | `infra/aws-poc/` | EKS proof-of-concept stack (VPC, EKS, edge, RDS, data, KMS, OIDC) |
 | `infra/telemetry/` | Persistent S3, Glue, Athena, and the Roles Anywhere shipper. About 1 USD per month. |
 | `k8s/aws-poc/` | Karpenter NodePool, ClusterSecretStore, Kyverno policy, and the sensor-exporter CronJob |
-| `docs/aws-poc/` | 1 November 2026 gallery, cost record, and drill notes |
+| `docs/aws-poc/` | 1 November 2026 gallery, cost record, drill notes, and the Phase 8 move |
+| `docs/test-session/` | Paid session records for 3 November and 7 November 2026 |
 | `scripts/bootstrap-k3d.sh` | Local k3d bootstrap |
 | `scripts/aws-poc.ps1` | `up`, `verify`, and `down` for a paid session |
 | `docs/` | The [documentation site](docs/index.md), week notes, and the [capstone write-up](docs/CAPSTONE.md) |

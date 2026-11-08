@@ -69,6 +69,7 @@ nav:
       - IAM and secrets: security/iam-and-secrets.md
       - Controls: security/controls.md
   - Test session, 3 November 2026: test-session/2026-11-03.md
+  - Test session, 7 November 2026: test-session/2026-11-07.md
   - Troubleshooting: troubleshooting.md
   - Weekly guides:
       - Index: weekly-guides/index.md

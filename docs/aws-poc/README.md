@@ -6,11 +6,31 @@ stop. The screenshots below are from that first day. The cluster in those
 pictures is gone, and `app.mygrowroom.click` does not resolve between
 sessions.
 
-As of 3 November 2026, phases 3 through 7 are done. The paid test session
-that day passed, and teardown was clean. I am not retelling it here. See
-the [test session](../test-session/2026-11-03.md) and the
-[phase pages](../index.md). The telemetry stack in `infra/telemetry` stays
-up and costs about 1 USD per month. `down` does not remove it.
+Phases 3 through 8 are done. The paid test session on 3 November 2026
+passed, and teardown was clean. Phase 8, the Home Assistant move, was
+paid-verified on 7 November 2026. `verify -WithHA` ended `ALL CHECKS PASSED`,
+and `down` destroyed 161 resources. I am not retelling either
+day here. See the [3 November test session](../test-session/2026-11-03.md),
+the [7 November test session](../test-session/2026-11-07.md), and the
+[phase pages](../index.md). The screenshots on this page are still the
+1 November gallery. There is no 7 November screenshot in the repo.
+
+The telemetry stack in `infra/telemetry` stays up and costs about 1 USD
+per month. `down` does not remove it. That monthly line is the telemetry
+stack comment. It is not the Cost Explorer read. UnblendedCost from the
+8 November 2026 paste in [COSTS.md](COSTS.md) (commit `2774570`, 8:32 AM
+MST) is 0.0672586299 USD on 6 November, 2.6880926014 USD on 7 November,
+and 0.0170460668 USD on 8 November. For 7 November, service groups greater
+than 0.01 USD: AWS Key Management Service 0.0986111119, AWS WAF
+0.0315379174, EC2 - Other 0.7230693192, Amazon Elastic Compute Cloud -
+Compute 0.7643948866, Amazon Elastic Container Service for Kubernetes
+0.318104639, Amazon Elastic Load Balancing 0.0225053118, Amazon Relational
+Database Service 0.1199012534, Amazon Virtual Private Cloud 0.241474528,
+and AmazonCloudWatch 0.36555855. Those commands use the Cost Explorer API
+in `us-east-1`, profile `GrowRoom`, and they do not pass
+`file://ce-filter.json`. Cost Explorer can lag up to 24 hours. The
+1 November and 3 November dollar cells in that file are still blank. The
+script's about 0.70 USD per hour line is a planning warning, not that read.
 
 Terraform for the session stack is [`infra/aws-poc`](https://github.com/TontoBlanco/grow-room-platform/tree/main/infra/aws-poc).
 Cluster extras that are not in the Helm chart are in
@@ -19,8 +39,10 @@ Cluster extras that are not in the Helm chart are in
 The public name was `app.mygrowroom.click`. The account id stays in the
 Terraform backend and the up script. I do not repeat it here.
 
-This did not replace the local k3d lab. Live tent readings still come from
-Home Assistant on Docker Compose. The pods in AWS used the simulator.
+This did not replace the local k3d lab. Between sessions, live tent
+readings still come from Home Assistant on Docker Compose. The pods in
+these 1 November screenshots used the simulator. `up -WithHA` is the
+later Phase 8 path, written up on the 7 November test session.
 
 ## Architecture
 
@@ -352,14 +374,16 @@ referrer bundles were invisible to Kyverno 1.19 (`no signatures found`).
 ## Limits / next steps
 
 - There is no standing EKS cluster between sessions. These screenshots are
-  the 1 November record. The 3 November session is a separate page, and
-  teardown that day was clean.
+  the 1 November record. The 3 November session and the 7 November Phase 8
+  session are separate pages. Teardown on both of those days was clean.
 - One region, `us-west-2`. No second region. The 3 November session did
   include an RDS Multi-AZ failover, about 30 seconds. That drill is in
   [DRILLS.md](DRILLS.md).
-- Cloud pods ran `SENSOR_SOURCE=simulator`. Live AC Infinity readings stayed
-  on the Docker Compose path. I did not put the Home Assistant token in the
-  cluster.
+- On 1 November and 3 November, cloud pods ran `SENSOR_SOURCE=simulator`.
+  Live AC Infinity readings stayed on the Docker Compose path. `up -WithHA`
+  on 7 November pointed sensor-service at Home Assistant and applied the
+  token as a Kubernetes secret at runtime. The token is still not in Git.
+  Plain `up` still uses the simulator.
 - The k3d monitoring Application still uses `monitoring/values-k3d.yaml`,
   including a scrape of `host.k3d.internal`. On EKS, `monitoring/values-eks.yaml`
   replaces that list with an empty one so the laptop address is not a target.
