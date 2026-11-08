@@ -8,8 +8,10 @@ image:
   tag: stable
   pullPolicy: IfNotPresent
 
-# Pin matches a published amazon/aws-cli tag. The entrypoint is replaced with bash
-# so the restore script can check size and KMS before it extracts.
+# Pin matches a published amazon/aws-cli tag. That image has bash and sha256sum,
+# and does not have openssl, tar, or gzip. restore.sh installs tar and gzip when
+# they are missing. The entrypoint is bash so the script can check size, KMS,
+# and SHA-256 before it extracts.
 restoreImage:
   repository: public.ecr.aws/aws-cli/aws-cli
   tag: "2.39.3"

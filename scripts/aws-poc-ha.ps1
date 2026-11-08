@@ -877,10 +877,20 @@ function Backup-EksConfigToS3 {
   if ($LASTEXITCODE -ne 0 -or -not $pod) { throw "no home-assistant pod to back up" }
   kubectl exec -n $c.namespace $pod -c $c.container -- python3 /scripts/pack_config.py | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "pack inside the EKS pod failed" }
-  $archive = Join-Path ([IO.Path]::GetTempPath()) ("ha-eks-" + [guid]::NewGuid().ToString("n") + ".tar.gz")
+  # kubectl cp treats a drive letter (C:\...) as a remote host. Copy to a
+  # relative leaf, then move that file to the temp path. Out-Null stops the
+  # tar warning on stdout from becoming part of the returned key.
+  $leaf = "ha-eks-" + [guid]::NewGuid().ToString("n") + ".tar.gz"
+  $archive = Join-Path ([IO.Path]::GetTempPath()) $leaf
+  $copied = Join-Path (Get-Location).Path $leaf
   try {
-    kubectl cp "$($c.namespace)/${pod}:/tmp/ha-backup.tar.gz" $archive -c $c.container
+    kubectl cp "$($c.namespace)/${pod}:/tmp/ha-backup.tar.gz" $leaf -c $c.container | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "kubectl cp of the EKS backup failed" }
+    $copiedFull = [IO.Path]::GetFullPath($copied)
+    $archiveFull = [IO.Path]::GetFullPath($archive)
+    if ($copiedFull -ne $archiveFull) {
+      Move-Item -LiteralPath $copied -Destination $archive -Force
+    }
     kubectl exec -n $c.namespace $pod -c $c.container -- rm -f /tmp/ha-backup.tar.gz | Out-Null
     Resolve-HaPython
     $scriptPath = Join-Path $PSScriptRoot "ha_migration.py"
@@ -892,7 +902,12 @@ function Backup-EksConfigToS3 {
     Send-VerifiedBackup -Archive $archive -Key $key
     return $key
   } finally {
-    if (Test-Path $archive) { Remove-Item $archive -Force }
+    if (Test-Path -LiteralPath $copied) {
+      $copiedFull = [IO.Path]::GetFullPath($copied)
+      $archiveFull = [IO.Path]::GetFullPath($archive)
+      if ($copiedFull -ne $archiveFull) { Remove-Item -LiteralPath $copied -Force }
+    }
+    if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
   }
 }
 

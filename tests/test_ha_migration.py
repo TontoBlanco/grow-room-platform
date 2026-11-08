@@ -456,6 +456,10 @@ def test_pack_script_and_restore_script(tmp_path):
         encoding="utf-8",
     )
     aws.chmod(aws.stat().st_mode | stat.S_IEXEC)
+    for name in ("dnf", "yum", "microdnf"):
+        tool = fake_bin / name
+        tool.write_text("#!/bin/sh\necho should-not-install >&2\nexit 1\n", encoding="utf-8")
+        tool.chmod(tool.stat().st_mode | stat.S_IEXEC)
     run_env = os.environ.copy()
     run_env.update(
         {
@@ -480,6 +484,7 @@ def test_pack_script_and_restore_script(tmp_path):
     assert restored.returncode == 0, restored.stderr
     assert "do-not-log" not in restored.stdout
     assert "do-not-log" not in restored.stderr
+    assert "should-not-install" not in restored.stderr
     assert (restore_dir / "home-assistant_v2.db").read_bytes() == b"db-contents"
     assert json.loads(restored.stdout)["skipped"] is False
 
@@ -492,6 +497,120 @@ def test_pack_script_and_restore_script(tmp_path):
     )
     assert again.returncode == 0, again.stderr
     assert json.loads(again.stdout)["skipped"] is True
+
+
+def test_restore_script_hashes_with_sha256sum_and_installs_archive_tools():
+    text = RESTORE.read_text(encoding="utf-8")
+    assert "sha256sum" in text
+    assert "openssl" not in text
+    assert "dnf install -y tar gzip" in text
+    assert "yum install -y tar gzip" in text
+    assert "microdnf install -y tar gzip" in text
+    chart = (ROOT / "charts" / "home-assistant" / "templates" / "deployment.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "progressDeadlineSeconds: 900" in chart
+    assert "checksum/scripts:" in chart
+
+
+def test_restore_installs_tar_and_gzip_when_the_image_lacks_them(tmp_path):
+    config = tmp_path / "config"
+    config.mkdir()
+    (config / "home-assistant_v2.db").write_bytes(b"db-contents")
+    archive = tmp_path / "ha-backup.tar.gz"
+    env = os.environ.copy()
+    env["HA_CONFIG"] = str(config)
+    env["HA_ARCHIVE"] = str(archive)
+    packed = subprocess.run(  # noqa: S603
+        [sys.executable, str(PACK)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert packed.returncode == 0, packed.stderr
+
+    support = tmp_path / "support"
+    support.mkdir()
+    for name in ("sha256sum", "base64", "wc", "tr", "grep", "mkdir", "rm", "cp"):
+        os.symlink(shutil.which(name), support / name)
+    aws = support / "aws"
+    digest = hashlib.sha256(archive.read_bytes()).digest()
+    checksum = base64.b64encode(digest).decode("ascii")
+    size = archive.stat().st_size
+    aws.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                "set -eu",
+                'if [ "$1" = "s3api" ] && [ "$2" = "get-object" ]; then',
+                '  dest=""',
+                '  for arg in "$@"; do dest=$arg; done',
+                '  cp "$HA_FIXTURE" "$dest"',
+                "  exit 0",
+                "fi",
+                'if [ "$1" = "s3api" ] && [ "$2" = "head-object" ]; then',
+                '  case "$*" in',
+                "    *ServerSideEncryption*) printf aws:kms ;;",
+                f"    *ContentLength*) printf {size} ;;",
+                f"    *ChecksumSHA256*) printf {checksum} ;;",
+                "  esac",
+                "  exit 0",
+                "fi",
+                "echo unexpected >&2",
+                "exit 1",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    aws.chmod(aws.stat().st_mode | stat.S_IEXEC)
+    ln = shutil.which("ln")
+    tar = shutil.which("tar")
+    gzip = shutil.which("gzip")
+    assert ln and tar and gzip
+    dnf = support / "dnf"
+    dnf.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                "set -eu",
+                f"{ln} -sfn {tar} {support}/tar",
+                f"{ln} -sfn {gzip} {support}/gzip",
+                f"printf dnf-ran > {support}/dnf-ran",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    dnf.chmod(dnf.stat().st_mode | stat.S_IEXEC)
+    restore_dir = tmp_path / "restored"
+    restore_dir.mkdir()
+    run_env = os.environ.copy()
+    run_env.update(
+        {
+            "PATH": str(support),
+            "HA_CONFIG": str(restore_dir),
+            "HA_ARCHIVE": str(tmp_path / "downloaded.tar.gz"),
+            "HA_NAMES": str(tmp_path / "names.txt"),
+            "HA_BUCKET": "grow-room-telemetry-590183769702",
+            "HA_KEY": "ha-backups/20261103T120000Z.tar.gz",
+            "HA_FIXTURE": str(archive),
+        }
+    )
+    bash = shutil.which("bash")
+    assert bash
+    restored = subprocess.run(  # noqa: S603
+        [bash, str(RESTORE)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=run_env,
+    )
+    assert restored.returncode == 0, restored.stderr
+    assert (support / "dnf-ran").read_text(encoding="utf-8") == "dnf-ran"
+    assert json.loads(restored.stdout) == {"skipped": False}
+    assert (restore_dir / "home-assistant_v2.db").read_bytes() == b"db-contents"
 
 
 def _powershell_function(text: str, name: str) -> str:
@@ -662,14 +781,26 @@ def test_archive_plan_tars_inside_wsl_and_keeps_drive_paths_on_python():
         ".",
     ]
     commands = [step["argv"][0] for step in plan["steps"]]
-    assert commands.count("bash") == 2
+    assert "bash" not in commands
     assert "/usr/bin/test" in commands
     assert "cp" in commands
-    rollback = [step for step in plan["steps"] if step["when"] == "rollback"]
-    assert len(rollback) == 1
-    assert "$1" in rollback[0]["argv"][2]
+    linux = "/home/colem/src/grow-room-platform/ha-config"
+    parent = "/home/colem/src/grow-room-platform"
+    assert [step for step in plan["steps"] if step["argv"][0] == "mv"] == [
+        {"argv": ["mv", linux, parent + "/ha-config.previous"], "when": "always"},
+        {"argv": ["mv", parent + "/ha-config.staging", linux], "when": "always"},
+        {"argv": ["mv", "-T", parent + "/ha-config.previous", linux], "when": "rollback"},
+    ]
+    assert "$1" not in json.dumps(plan)
     copy = next(step for step in plan["steps"] if step["argv"][0] == "cp")
     assert copy["argv"][2].endswith("/.")
+    spaced = ha.archive_plan(
+        r"\\wsl.localhost\Ubuntu\home\colem\my config",
+        archive,
+        staged,
+    )
+    spaced_mv = [step["argv"] for step in spaced["steps"] if step["argv"][0] == "mv"]
+    assert ["mv", "/home/colem/my config", "/home/colem/my config.previous"] in spaced_mv
     local = ha.archive_plan(r"C:\src\grow-room-platform\ha-config", archive)
     assert local["use_wsl"] is False
     assert local["pack"] == []
@@ -768,6 +899,18 @@ def test_powershell_resolves_ha_config_path_and_targets_the_container():
     assert "config_dir" in layout
     assert "need_distro" in layout
     assert "Get-WslDefaultDistro" in layout
+    backup = _powershell_function(helper, "Backup-EksConfigToS3")
+    cp_lines = [line for line in backup.splitlines() if line.strip().startswith("kubectl cp ")]
+    assert len(cp_lines) == 1
+    assert cp_lines[0].strip().endswith("| Out-Null")
+    assert "$leaf" in cp_lines[0]
+    assert "$archive" not in cp_lines[0]
+    assert "Move-Item" in backup
+    down = _powershell_function(poc, "Do-Down")
+    assert "while (-not $proc.HasExited)" in down
+    assert 'if ($null -eq $code -or "$code" -eq "")' in down
+    assert 'throw "destroy failed (exit $code)"' in down
+    assert down.index("while (-not $proc.HasExited)") < down.index("reported no exit code")
 
 
 def test_phase8_doc_covers_cost_data_and_failure_modes():
