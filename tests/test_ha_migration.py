@@ -963,7 +963,7 @@ def test_declining_the_cost_prompt_restarts_home_when_this_run_stopped_it():
 
     prepare = _powershell_function(helper, "Invoke-WithHaPrepare")
     assert prepare.index("Stop-HomeHa") < prepare.index("Backup-HomeConfigToS3")
-    assert prepare.index('if ($plan.stop_home)') < prepare.index("$script:HaStoppedHome = $true")
+    assert prepare.index("if ($plan.stop_home)") < prepare.index("$script:HaStoppedHome = $true")
     doc = (ROOT / "docs" / "aws-poc" / "PHASE8_HA_MIGRATION.md").read_text(encoding="utf-8")
     assert "Type yes to continue:" in doc
     assert "records the move as home" in doc
