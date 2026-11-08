@@ -57,3 +57,31 @@ not fill a blank cell with a number I have not read from Cost Explorer.
 ```powershell
 aws ce get-cost-and-usage --time-period Start=2026-11-01,End=2026-11-02 --granularity DAILY --metrics UnblendedCost --filter file://ce-filter.json --group-by Type=DIMENSION,Key=SERVICE
 ```
+
+PS C:\src\grow-room-platform> aws ce get-cost-and-usage --profile GrowRoom --region us-east-1 --time-period Start=2026-11-06,End=2026-11-09 --granularity DAILY --metrics UnblendedCost --query 'ResultsByTime[].{Date:TimePeriod.Start, Amount:Total.UnblendedCost.Amount, Unit:Total.UnblendedCost.Unit}' --output table
+----------------------------------------
+|            GetCostAndUsage           |
++---------------+--------------+-------+
+|    Amount     |    Date      | Unit  |
++---------------+--------------+-------+
+|  0.0672586299 |  2026-11-06  |  USD  |
+|  2.6880926014 |  2026-11-07  |  USD  |
+|  0.0170460668 |  2026-11-08  |  USD  |
++---------------+--------------+-------+
+
+PS C:\src\grow-room-platform> aws ce get-cost-and-usage --profile GrowRoom --region us-east-1 --time-period Start=2026-11-07,End=2026-11-08 --granularity DAILY --metrics UnblendedCost --group-by Type=DIMENSION,Key=SERVICE --query 'ResultsByTime[0].Groups[?to_number(Metrics.UnblendedCost.Amount)>`0.01`].[Keys[0], Metrics.UnblendedCost.Amount]' --output table
+---------------------------------------------------------------------
+|                          GetCostAndUsage                          |
++---------------------------------------------------+---------------+
+|  AWS Key Management Service                       |  0.0986111119 |
+|  AWS WAF                                          |  0.0315379174 |
+|  EC2 - Other                                      |  0.7230693192 |
+|  Amazon Elastic Compute Cloud - Compute           |  0.7643948866 |
+|  Amazon Elastic Container Service for Kubernetes  |  0.318104639  |
+|  Amazon Elastic Load Balancing                    |  0.0225053118 |
+|  Amazon Relational Database Service               |  0.1199012534 |
+|  Amazon Virtual Private Cloud                     |  0.241474528  |
+|  AmazonCloudWatch                                 |  0.36555855   |
++---------------------------------------------------+---------------+
+
+PS C:\src\grow-room-platform>
