@@ -50,6 +50,13 @@ def _dir_on_root_fs(tmp_path: Path) -> Path:
     pytest.skip("no directory on the root filesystem")
 
 
+def test_berry_host_vars_point_at_the_usb_folder():
+    text = (ROOT / "ansible/inventories/pi/host_vars/berry.yml").read_text(encoding="utf-8")
+    assert "ha_backup_second_dest: /mnt/ha-backups/homeassistant" in text
+    group = (ROOT / "ansible/inventories/pi/group_vars/edge.yml").read_text(encoding="utf-8")
+    assert "ha_backup_second_dest" not in group
+
+
 def test_script_is_executable_lf_utf8():
     raw = SCRIPT.read_bytes()
     assert not raw.startswith(b"\xef\xbb\xbf")

@@ -1,0 +1,7 @@
+# Nightly copy onto the USB drive already mounted on berry.
+# 2 TB WD, ext4, label ha-backups, mount /mnt/ha-backups.
+# fstab on the Pi already has that mount (nofail). This playbook does not
+# format the disk and does not manage fstab.
+# The backup script still skips this path when it is not on its own
+# mounted filesystem, which is what happens if the drive is unplugged.
+ha_backup_second_dest: /mnt/ha-backups/homeassistant

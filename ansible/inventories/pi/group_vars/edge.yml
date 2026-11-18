@@ -7,8 +7,3 @@ ansible_ssh_private_key_file: "{{ berry_ssh_private_key_file }}"
 # ansible.cfg sets become_exe to sudo.ws for the WSL playbook.
 # Raspberry Pi OS uses sudo.
 ansible_become_exe: sudo
-
-# Empty skips the USB copy. Set a mount path to enable it, for example
-# /mnt/backup. The script skips the copy when that path is not on its own
-# mounted filesystem.
-ha_backup_second_dest: ""

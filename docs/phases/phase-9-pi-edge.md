@@ -16,6 +16,7 @@ k3d stays on the PC. See [ADR-0011](../adr/0011-k3d-instead-of-a-pi.md) and [ADR
 | Role `docker` | Does nothing when `/usr/bin/docker` is already there. Otherwise installs Engine and the Compose plugin from Docker's Debian apt repository. |
 | Role `homeassistant` | Writes `/opt/homeassistant/docker-compose.yml` and runs `docker compose up`. It does not copy or delete anything under `/opt/homeassistant/config`. |
 | Role `ha_backup` | Script, systemd service, and a timer at 03:00 America/Denver. |
+| USB copy | `host_vars/berry.yml` sets `ha_backup_second_dest` to `/mnt/ha-backups/homeassistant` on the WD drive. |
 | PC Compose | Service `homeassistant` is profile `local-ha`. `docker compose up -d` does not start it. |
 
 The image tag defaults to `ghcr.io/home-assistant/home-assistant:stable`. That is the tag already running on the Pi. `stable` moves when Home Assistant publishes a release. The playbook pulls only when the image is missing, so a second run does not upgrade a container that already has it. To freeze a build I set `homeassistant_image` to a dated tag such as `ghcr.io/home-assistant/home-assistant:2026.11.1`.
@@ -39,6 +40,7 @@ flowchart LR
   CS --> PROM["k3d Prometheus"]
   PLAY["berry.yml"] --> HA
   TIMER["ha-backup.timer 03:00"] --> TAR["/opt/homeassistant/backups"]
+  TIMER --> USB["/mnt/ha-backups/homeassistant"]
 ```
 
 ## Run the playbook from WSL
@@ -74,9 +76,13 @@ I snapshot `home-assistant_v2.db` with `sqlite3 .backup` while the container kee
 
 The archive is `homeassistant-config-YYYYMMDD-HHMMSS.tar.gz`. The default directory is `/opt/homeassistant/backups`, mode `0750`. Retention defaults to 14. Both are variables: `ha_backup_dest` and `ha_backup_retention`.
 
-`ha_backup_second_dest` is empty by default, so there is no second copy. Set it to a USB mount path, for example `/mnt/backup`, and rerun the playbook. If that path is not on its own mounted filesystem, the script logs a line and skips it. An unplugged drive does not fail the backup. I do not send these archives to S3, AWS, or any other cloud. The Phase 8 bucket copy is a different thing, and it is not this timer.
+The role default for `ha_backup_second_dest` is empty, which skips the second copy. On `berry` I set it in `ansible/inventories/pi/host_vars/berry.yml` to `/mnt/ha-backups/homeassistant`.
 
-The archive contains `secrets.yaml`, `.storage`, and the long-lived token material. It stays on the Pi.
+That folder is on a 2 TB WD drive, ext4, label `ha-backups`. The Pi already mounts it at `/mnt/ha-backups` from `/etc/fstab`: UUID `4f9d54ce-e197-4b40-a80f-e1975a693761`, options `defaults,nofail,x-systemd.device-timeout=10s`. `/mnt/ha-backups/homeassistant` is owned by `cole`. I did not put fstab, partitioning, or formatting in Ansible. The mount was already there.
+
+The script still skips the copy when that path is not on its own mounted filesystem. `nofail` lets the Pi boot with the drive unplugged, and that night the backup logs a line and keeps the copy under `/opt/homeassistant/backups`. An unplugged drive does not fail the timer. I do not send these archives to S3, AWS, or any other cloud. The Phase 8 bucket copy is a different thing, and it is not this timer.
+
+The archive contains `secrets.yaml`, `.storage`, and the long-lived token material. Both copies stay on the Pi: the disk under `/opt/homeassistant/backups`, and the WD drive when it is mounted. The timer runs as root, so the tar files are root-owned. The playbook does not change the owner of `/mnt/ha-backups/homeassistant`.
 
 ## Restore
 
