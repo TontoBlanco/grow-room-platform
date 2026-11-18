@@ -1,0 +1,14 @@
+# Path on the control node (WSL). Not a private key.
+# Override when the key is not the default:
+#   BERRY_SSH_PRIVATE_KEY_FILE=/home/colem/.ssh/id_ed25519
+berry_ssh_private_key_file: "{{ lookup('ansible.builtin.env', 'BERRY_SSH_PRIVATE_KEY_FILE') | default('~/.ssh/id_ed25519', true) }}"
+ansible_ssh_private_key_file: "{{ berry_ssh_private_key_file }}"
+
+# ansible.cfg sets become_exe to sudo.ws for the WSL playbook.
+# Raspberry Pi OS uses sudo.
+ansible_become_exe: sudo
+
+# Empty skips the USB copy. Set a mount path to enable it, for example
+# /mnt/backup. The script skips the copy when that path is not on its own
+# mounted filesystem.
+ha_backup_second_dest: ""

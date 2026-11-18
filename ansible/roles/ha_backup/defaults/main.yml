@@ -1,0 +1,10 @@
+ha_backup_config: /opt/homeassistant/config
+ha_backup_dest: /opt/homeassistant/backups
+ha_backup_retention: 14
+# Empty disables the second copy. A path is used only when it sits on a
+# filesystem other than the root disk, so an unplugged USB mount is skipped.
+ha_backup_second_dest: ""
+ha_backup_calendar: "*-*-* 03:00:00"
+ha_backup_timezone: America/Denver
+ha_backup_script_path: /usr/local/sbin/ha-backup
+ha_backup_env_path: /etc/ha-backup.env

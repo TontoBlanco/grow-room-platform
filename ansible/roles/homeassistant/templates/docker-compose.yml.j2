@@ -1,0 +1,14 @@
+# Managed by Ansible (role homeassistant). Not privileged.
+# Host networking publishes the UI on port 8123 of berry.
+# Do not run a second Home Assistant on the PC while this stack is up.
+services:
+  homeassistant:
+    image: "{{ homeassistant_image }}"
+    container_name: "{{ homeassistant_container_name }}"
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      TZ: "{{ homeassistant_timezone }}"
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro

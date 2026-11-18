@@ -1,0 +1,42 @@
+- name: Create the Home Assistant directory
+  ansible.builtin.file:
+    path: "{{ homeassistant_dir }}"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+
+# The config directory holds the AC Infinity login, tokens, and the recorder
+# database. Create it only when it is missing. Never copy, template, or
+# delete anything under it.
+- name: Check the Home Assistant config directory
+  ansible.builtin.stat:
+    path: "{{ homeassistant_dir }}/config"
+  register: homeassistant_config_stat
+
+- name: Create the Home Assistant config directory when it is missing
+  ansible.builtin.file:
+    path: "{{ homeassistant_dir }}/config"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  when: not homeassistant_config_stat.stat.exists
+
+- name: Install the Home Assistant Compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ homeassistant_dir }}/docker-compose.yml"
+    mode: "0644"
+    owner: root
+    group: root
+
+- name: Ensure the Home Assistant stack is up
+  community.docker.docker_compose_v2:
+    project_src: "{{ homeassistant_dir }}"
+    state: present
+    services:
+      - homeassistant
+    pull: missing
+    build: never
+    remove_orphans: false

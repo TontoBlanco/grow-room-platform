@@ -1,0 +1,79 @@
+- name: Check for the Docker client
+  ansible.builtin.stat:
+    path: "{{ docker_bin_path }}"
+  register: docker_client_stat
+
+- name: Check for a Docker Compose plugin
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ docker_compose_plugin_paths }}"
+  register: docker_compose_plugin_stat
+  when: docker_client_stat.stat.exists
+
+- name: Record whether Docker Compose is already installed
+  ansible.builtin.set_fact:
+    docker_compose_present: "{{ docker_compose_plugin_stat.results | default([]) | selectattr('stat.exists') | list | length > 0 }}"
+
+- name: Refuse to replace an existing Docker install that has no Compose plugin
+  ansible.builtin.fail:
+    msg: >-
+      {{ docker_bin_path }} exists but the Compose plugin is not in
+      {{ docker_compose_plugin_paths | join(', ') }}.
+      Install docker-compose-plugin, then rerun. This role does not
+      reinstall Docker when the engine is already present.
+  when:
+    - docker_client_stat.stat.exists
+    - not (docker_compose_present | bool)
+
+- name: Install Docker Engine from Docker's apt repository
+  when: not docker_client_stat.stat.exists
+  block:
+    - name: Install packages required to add Docker's apt source
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the apt keyrings directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+        owner: root
+        group: root
+
+    - name: Add Docker's Debian apt source
+      ansible.builtin.deb822_repository:
+        name: docker
+        types: [deb]
+        uris: ["{{ docker_apt_repo }}"]
+        suites: ["{{ ansible_distribution_release }}"]
+        components: ["{{ docker_apt_channel }}"]
+        signed_by: "{{ docker_apt_gpg }}"
+        state: present
+        enabled: true
+
+    - name: Install Docker Engine and the Compose plugin
+      ansible.builtin.apt:
+        name: "{{ docker_packages }}"
+        state: present
+        update_cache: true
+
+    - name: Record that Docker was installed in this run
+      ansible.builtin.set_fact:
+        docker_installed_this_run: true
+
+- name: Wait until the Docker daemon answers
+  ansible.builtin.command:
+    argv:
+      - docker
+      - info
+  register: docker_info
+  changed_when: false
+  retries: 10
+  delay: 3
+  until: docker_info.rc == 0
+  when: docker_installed_this_run | default(false)
