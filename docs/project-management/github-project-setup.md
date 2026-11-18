@@ -82,6 +82,8 @@ gh api --method POST repos/TontoBlanco/grow-room-platform/milestones -f title="P
 gh api --method POST repos/TontoBlanco/grow-room-platform/milestones -f title="Phase 5: Signing, SBOM, and the scan gate" -f description="Trivy, Syft, cosign 2.6.5, Kyverno Audit. See docs/phases/phase-5-supply-chain.md."
 ```
 
+That description is the text I posted when the policy was Audit. Enforce was validated on 18 November 2026. The record is [the test session](../test-session/2026-11-18.md).
+
 ```powershell
 gh api --method POST repos/TontoBlanco/grow-room-platform/milestones -f title="Phase 6: Costs and decision records" -f description="docs/aws-poc/COSTS.md and docs/adr. See docs/phases/phase-6-costs-and-adrs.md."
 ```

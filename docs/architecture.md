@@ -116,7 +116,7 @@ Someone who can write the database can rewrite a row and recompute the hash. The
 - Moving k3d onto the Pi. Home Assistant is on `berry`. The cluster stays on the PC. See [ADR-0012](adr/0012-home-assistant-on-the-pi.md).
 - The Home Assistant token inside an Argo-managed pod.
 - A network policy.
-- Kyverno set to Enforce. The policy is Audit until a report shows only passes.
+- Migrating Kyverno from `ClusterPolicy` `verifyImages` to `ImageValidatingPolicy`. Enforce, with `mutateDigest` and `verifyDigest`, was validated on 18 November 2026. See the [18 November test session](test-session/2026-11-18.md).
 - A second AWS region.
 - WAF logging. It was off during the proof of concept.
 - An apply role narrower than `AdministratorAccess`. The bootstrap file calls that a demo shortcut.

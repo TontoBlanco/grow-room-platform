@@ -55,7 +55,7 @@ I built the local project in five weeks, then a one-day AWS stack, then numbered
 | [Phase 2](phases/phase-2-up-verify-down.md) | `scripts/aws-poc.ps1` with `up`, `verify`, and `down` | PR #56 |
 | [Phase 3](phases/phase-3-telemetry.md) | Home shipper, S3, Glue, Athena, and the EKS exporter | PR #71, #73 |
 | [Phase 4](phases/phase-4-slos-and-drills.md) | Service level objectives, email alerts, four drills | PR #64, #75 |
-| [Phase 5](phases/phase-5-supply-chain.md) | Trivy gate, SBOM, keyless signing, Kyverno in Audit | PR #62, #75 |
+| [Phase 5](phases/phase-5-supply-chain.md) | Trivy gate, SBOM, keyless signing, Kyverno Enforce validated 18 November 2026 | PR #62, #75 |
 | [Phase 6](phases/phase-6-costs-and-adrs.md) | Cost record template and the first decision records | PR #58 |
 | [Phase 7](phases/phase-7-ansible.md) | Ansible for the WSL2 workstation | PR #69 |
 | [Phase 8](aws-poc/PHASE8_HA_MIGRATION.md) | Home Assistant moves with `up -WithHA` and comes home on `down`. Paid verify 7 November 2026, then the hotfixes from that run. | PR #95, #97, #99, #101, #103 |
@@ -77,7 +77,7 @@ The telemetry stack stays up at about 1 USD per month. `GROW_STAGE` landed on 3 
 
 This is not a standing production cluster. The expensive AWS pieces are destroyed after a session. The audit log is practice at recording state changes. It is not a state traceability integration, and it is not an authorization package.
 
-The [roadmap](project-management/roadmap.md) still has Dependabot or Renovate, which I have not started. The [3 November test session](test-session/2026-11-03.md) is the paid run that day. The [7 November test session](test-session/2026-11-07.md) is the Phase 8 paid verify. The 8 November check, where I typed `no` and Terraform did not apply, is on that same page.
+The [roadmap](project-management/roadmap.md) still has Dependabot or Renovate, which I have not started. The [3 November test session](test-session/2026-11-03.md) is the paid run that day. The [7 November test session](test-session/2026-11-07.md) is the Phase 8 paid verify. The 8 November check, where I typed `no` and Terraform did not apply, is on that same page. The [18 November test session](test-session/2026-11-18.md) is the Kyverno Enforce run.
 
 ## Commands I assume
 

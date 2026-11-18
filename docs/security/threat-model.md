@@ -29,7 +29,7 @@ The audit hash detects a changed row only if the attacker does not recompute the
 
 S3 objects can be overwritten by anything that has `s3:PutObject` on that key. The shipper role has that on `readings/*`. It does not have delete. Overwrite is still tampering.
 
-Image tags move. CI signs the digest. Kyverno is in Audit, so a bad image is reported, not rejected.
+Image tags move. CI signs the digest. Kyverno `failureAction` is `Enforce` for `ghcr.io/tontoblanco/grow-room-platform*` in namespace `grow-room`. On 18 November 2026 a rollout admitted the signed image and Kyverno pinned its digest. A dry-run of an in-scope image whose signature Kyverno cannot see was denied. Images outside that match are not checked. The session is [18 November](../test-session/2026-11-18.md).
 
 ## Repudiation
 

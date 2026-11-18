@@ -34,7 +34,8 @@ cluster is not.
   The record is the
   [documentation site](docs/index.md), the
   [3 November test session](docs/test-session/2026-11-03.md), the
-  [7 November test session](docs/test-session/2026-11-07.md), and the
+  [7 November test session](docs/test-session/2026-11-07.md), the
+  [18 November test session](docs/test-session/2026-11-18.md), and the
   [1 November gallery](docs/aws-poc/README.md).
 - **Telemetry that stays up.** `infra/telemetry` stores readings in S3 for
   Athena. It costs about 1 USD per month. `down` does not remove it. See
@@ -82,7 +83,9 @@ was 7 November 2026, with hotfixes in pull requests
 page for each phase is on the
 [documentation site](docs/index.md). The 1 November gallery is
 [docs/aws-poc/README.md](docs/aws-poc/README.md). The 7 November record is
-[docs/test-session/2026-11-07.md](docs/test-session/2026-11-07.md).
+[docs/test-session/2026-11-07.md](docs/test-session/2026-11-07.md). The
+18 November record, Kyverno in Enforce, is
+[docs/test-session/2026-11-18.md](docs/test-session/2026-11-18.md).
 
 ## How it fits together
 
@@ -679,7 +682,7 @@ at in Git are on the [controls page](docs/security/controls.md).
 | `infra/telemetry/` | Persistent S3, Glue, Athena, and the Roles Anywhere shipper. About 1 USD per month. |
 | `k8s/aws-poc/` | Karpenter NodePool, ClusterSecretStore, Kyverno policy, and the sensor-exporter CronJob |
 | `docs/aws-poc/` | 1 November 2026 gallery, cost record, drill notes, and the Phase 8 move |
-| `docs/test-session/` | Paid session records for 3 November and 7 November 2026 |
+| `docs/test-session/` | Paid session records for 3 November, 7 November, and 18 November 2026 |
 | `scripts/bootstrap-k3d.sh` | Local k3d bootstrap |
 | `scripts/aws-poc.ps1` | `up`, `verify`, and `down` for a paid session |
 | `docs/` | The [documentation site](docs/index.md), week notes, and the [capstone write-up](docs/CAPSTONE.md) |

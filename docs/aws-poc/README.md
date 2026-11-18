@@ -11,9 +11,10 @@ passed, and teardown was clean. Phase 8, the Home Assistant move, was
 paid-verified on 7 November 2026. `verify -WithHA` ended `ALL CHECKS PASSED`,
 and `down` destroyed 161 resources. I am not retelling either
 day here. See the [3 November test session](../test-session/2026-11-03.md),
-the [7 November test session](../test-session/2026-11-07.md), and the
+the [7 November test session](../test-session/2026-11-07.md), the
+[18 November test session](../test-session/2026-11-18.md), and the
 [phase pages](../index.md). The screenshots on this page are still the
-1 November gallery. There is no 7 November screenshot in the repo.
+1 November gallery. There is no 7 November or 18 November screenshot in the repo.
 
 The telemetry stack in `infra/telemetry` stays up and costs about 1 USD
 per month. `down` does not remove it. That monthly line is the telemetry
@@ -359,12 +360,24 @@ issuer `https://token.actions.githubusercontent.com`.
 
 That string is also the subject on
 [`k8s/aws-poc/kyverno-verify-images.yaml`](https://github.com/TontoBlanco/grow-room-platform/blob/main/k8s/aws-poc/kyverno-verify-images.yaml).
-The policy stays in **Audit**. `mutateDigest` is false while the failure
-action is Audit (Kyverno rejects `true`). `verifyDigest` is false because the
-chart deploys a tag. After a PolicyReport pass on a `sha-*` image, switch
-`failureAction` to `Enforce` and set `mutateDigest` and `verifyDigest` to
-true. Signing uses cosign 2.6 legacy `sha256-<digest>.sig` tags. Cosign 3
-referrer bundles were invisible to Kyverno 1.19 (`no signatures found`).
+**Enforce is validated.** On 18 November 2026, Audit PolicyReports were
+`pass=1` and `fail=0`. `failureAction` is `Enforce`. `mutateDigest` and
+`verifyDigest` are true. Kyverno rejects `mutateDigest: true` while the
+failure action is Audit, so those three fields changed together. Signing
+uses cosign 2.6.5 legacy `sha256-<digest>.sig` tags. A cosign 3 referrer
+bundle is invisible to Kyverno 1.19. The dry-run of `sha-8b294a9` that day
+was denied with `no signatures found`. The signed image `sha-c8985e5` was
+admitted, and Kyverno pinned its digest. The record is the
+[18 November test session](../test-session/2026-11-18.md).
+
+Install Kyverno with chart `3.9.2` (Kyverno v1.19.2):
+
+```powershell
+helm upgrade --install kyverno kyverno/kyverno -n kyverno --create-namespace --version 3.9.2 --wait
+```
+
+Chart 3.10.0 is Kyverno v1.20.0, where `ClusterPolicy` `verifyImages` is
+slated for removal, so the install stays on 3.9.2.
 
 `ClusterPolicy` `verifyImages` is deprecated in Kyverno 1.19 in favor of
 `ImageValidatingPolicy` (`policies.kyverno.io/v1`), with removal planned for
@@ -374,8 +387,11 @@ referrer bundles were invisible to Kyverno 1.19 (`no signatures found`).
 ## Limits / next steps
 
 - There is no standing EKS cluster between sessions. These screenshots are
-  the 1 November record. The 3 November session and the 7 November Phase 8
-  session are separate pages. Teardown on both of those days was clean.
+  the 1 November record. The 3 November session, the 7 November Phase 8
+  session, and the 18 November Kyverno Enforce session are separate pages.
+  Teardown on those days was clean. The 18 November page is the
+  [test session](../test-session/2026-11-18.md). `down` that day destroyed
+  154 resources, and the leftover sweep was 0.
 - One region, `us-west-2`. No second region. The 3 November session did
   include an RDS Multi-AZ failover, about 30 seconds. That drill is in
   [DRILLS.md](DRILLS.md).

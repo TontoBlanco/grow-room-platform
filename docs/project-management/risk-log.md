@@ -1,6 +1,6 @@
 # Risk log
 
-Scores are High, Medium, or Low. I wrote this from the repository and from the two AWS sessions, not from a workshop. Owner is me.
+Scores are High, Medium, or Low. I wrote this from the repository and from the AWS sessions, not from a workshop. Owner is me.
 
 | ID | Risk | Likelihood | Impact | What I do about it | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ Scores are High, Medium, or Low. I wrote this from the repository and from the t
 | R8 | Audit hash is recomputed by anyone who can write the database. The integrity check still passes. | Low | Medium | I say this when I demo the endpoint. No external anchor. | Accepted |
 | R9 | k3d audit file is on `emptyDir`. A new pod drops the history. | Medium | Low | Documented. PVC example is not deployed. | Accepted |
 | R10 | SNS subscription sits at `PendingConfirmation`. Alerts are dropped and the drill looks broken. | Medium | Medium | `up` warns. Confirm once. Do not subscribe again. | Mitigated in the script |
-| R11 | Kyverno Audit does not stop an unsigned image. The 3 November report was `no signatures found` for the cosign 3 layout. | High, until a new image is checked | Medium | CI now signs with cosign 2.6.5 and the legacy tag. Enforce stays off until a PolicyReport passes. | Open |
+| R11 | An in-scope image Kyverno cannot verify reaches a pod. The 3 November report was `no signatures found` for the cosign 3 layout. | Medium, during a session | Medium | CI signs with cosign 2.6.5 and the legacy tag. Enforce is in `k8s/aws-poc/kyverno-verify-images.yaml` and was validated on 18 November 2026: `sha-c8985e5` was admitted and pinned, and `sha-8b294a9` was denied. Images outside the match, such as `busybox`, are still admitted. The chart pin is 3.9.2. | Mitigated in Git, validated 18 November 2026 |
 | R12 | `TargetDown` for `grow-room-ha-host` on EKS, because that address is the laptop. | Medium | Low | `monitoring/values-eks.yaml` sets `additionalScrapeConfigs` to an empty list. | Mitigated in Git |
 | R13 | `terraform destroy` hangs on an available network interface. | Medium | Medium | `down` deletes available interfaces in the proof-of-concept VPC before and during destroy. | Mitigated in the script |
 | R14 | Telemetry KMS key is left up and forgotten. About 1 USD per month. | Medium | Low | `down` prints that the telemetry stack is kept. The Phase 3 page says how to think about deleting it. | Open |

@@ -1,21 +1,17 @@
 # k8s/aws-poc/kyverno-verify-images.yaml  (OPTIONAL - stack up only)
-# Install first (pick the newest 3.x chart: helm search repo kyverno/kyverno --versions):
+# Enforce was validated on 18 November 2026 after an Audit pass.
+# PolicyReports were pass=1 fail=0 for the sensor-service pods, ReplicaSets,
+# and Deployment on ghcr.io/tontoblanco/grow-room-platform:sha-c8985e5.
+# The record is docs/test-session/2026-11-18.md.
+#
+# Install chart 3.9.2 (Kyverno v1.19.2). Chart 3.10.0 is Kyverno v1.20.0,
+# where ClusterPolicy verifyImages is slated for removal, so pin 3.9.2:
 #   helm repo add kyverno https://kyverno.github.io/kyverno/
-#   helm upgrade --install kyverno kyverno/kyverno -n kyverno --create-namespace --version <chart> --wait
+#   helm upgrade --install kyverno kyverno/kyverno -n kyverno --create-namespace --version 3.9.2 --wait
 #
-# Stay in Audit until a PolicyReport for ghcr.io/tontoblanco/grow-room-platform:sha-*
-# is pass. The signature has to be the legacy cosign tag (sha256-<digest>.sig)
-# published by .github/workflows/ci.yml on main. Cosign 3 bundles stored only as
-# OCI referrers are what produced "no signatures found" on Kyverno 1.19.
-#
-# Switch to Enforce only after that pass, and only then allow mutation:
-#   failureAction: Enforce
-#   mutateDigest: true
-#   verifyDigest: true
-# mutateDigest must be false while the failure action is Audit. Kyverno rejects
-# the policy otherwise ("mutateDigest must be set to false for Audit failure
-# action", including when the field is spec.validationFailureAction).
-# verifyDigest stays false here because the chart deploys a tag, not a digest.
+# failureAction, mutateDigest, and verifyDigest are set together.
+# Kyverno rejects mutateDigest: true while the failure action is Audit
+# ("mutateDigest must be set to false for Audit failure action").
 #
 # ClusterPolicy verifyImages is deprecated in Kyverno 1.19 in favor of
 # ImageValidatingPolicy (policies.kyverno.io/v1). Removal is planned for 1.20.
@@ -38,9 +34,9 @@ spec:
       verifyImages:
         - imageReferences:
             - "ghcr.io/tontoblanco/grow-room-platform*"
-          failureAction: Audit
-          mutateDigest: false
-          verifyDigest: false
+          failureAction: Enforce
+          mutateDigest: true
+          verifyDigest: true
           attestors:
             - entries:
                 - keyless:

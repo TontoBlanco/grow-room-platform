@@ -8,13 +8,13 @@ Home Assistant runs on the Pi `berry` at `http://10.0.0.62:8123`. sensor-service
 
 Docker Desktop still has to be running before sensor-service starts. The old PC container showed the same 401 when Docker was stopped and Home Assistant opened on the onboarding page. That container is rollback only. The steps are in [Phase 9](phases/phase-9-pi-edge.md).
 
-## Kyverno Audit and `mutateDigest`
+## Kyverno Enforce and `mutateDigest`
 
-While `failureAction` is `Audit`, `mutateDigest` must be `false`. Kyverno rejects the policy otherwise. `verifyDigest` stays `false` too, because the chart deploys a tag. Enforce is a later change, and only after a PolicyReport pass. The file is `k8s/aws-poc/kyverno-verify-images.yaml`. See [Phase 5](phases/phase-5-supply-chain.md).
+`k8s/aws-poc/kyverno-verify-images.yaml` is `failureAction: Enforce`, with `mutateDigest: true` and `verifyDigest: true`. That combination was validated on 18 November 2026 after an Audit pass. While `failureAction` is `Audit`, `mutateDigest` must be `false`. Kyverno rejects the policy otherwise. See [Phase 5](phases/phase-5-supply-chain.md) and the [18 November test session](test-session/2026-11-18.md).
 
 ## Kyverno 1.19 and cosign tags
 
-Kyverno 1.19 looks up the legacy tag `sha256-<digest>.sig`. Cosign 3 wrote referrer bundles, and the cluster reported `no signatures found` even though `cosign verify` in CI passed. CI now pins cosign `v2.6.5` and signs with `--registry-referrers-mode=legacy`. Images signed before that pin still fail the policy until a new `main` build replaces them.
+Kyverno 1.19 looks up the legacy tag `sha256-<digest>.sig`. Cosign 3 wrote referrer bundles, and the cluster reported `no signatures found` even though `cosign verify` in CI passed. CI now pins cosign `v2.6.5` and signs with `--registry-referrers-mode=legacy`. Images signed before that pin still fail the policy until a new `main` build replaces them. On 18 November the dry-run of `sha-8b294a9` was denied for that reason. The install pin is Helm chart `kyverno/kyverno` 3.9.2 (Kyverno v1.19.2). Chart 3.10.0 is Kyverno v1.20.0, where `ClusterPolicy` `verifyImages` is slated for removal.
 
 ## Load balancer 502 on pod delete and node drain
 
@@ -69,4 +69,5 @@ The sidecar now runs the Roles Anywhere helper and serves a container-credential
 | Signing and Kyverno | [Phase 5](phases/phase-5-supply-chain.md) |
 | The 3 November emails | [Test session](test-session/2026-11-03.md) |
 | Phase 8 move, the 7 November hand fixes, and the 8 November `no` | [Test session](test-session/2026-11-07.md) |
+| Kyverno Enforce on 18 November | [Test session](test-session/2026-11-18.md) |
 | Athena plugin, restart, and credentials | [Athena in Grafana](ATHENA_GRAFANA.md) and [Phase 3](phases/phase-3-telemetry.md) |

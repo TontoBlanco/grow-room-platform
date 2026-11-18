@@ -536,8 +536,10 @@ session and leaves the rest open. The detail is on the
   gitignored `.env`. Plain `up` still runs the simulator. The 7 November
   session is the paid verify of the move.
 - A state traceability integration.
-- Kyverno set to Enforce. CI does sign images with keyless cosign, and the
-  policy is in Audit. See [Phase 5](phases/phase-5-supply-chain.md).
+- Migrating Kyverno from `ClusterPolicy` `verifyImages` to
+  `ImageValidatingPolicy`. CI signs images with keyless cosign, and Enforce
+  was validated on 18 November 2026. See [Phase 5](phases/phase-5-supply-chain.md)
+  and the [18 November test session](test-session/2026-11-18.md).
 - A mounted PVC for the local SQLite file. Optional local Postgres is still
   a single database process. Session RDS is destroyed with the stack.
 - Moving k3d onto the Pi. Home Assistant is on `berry` as of 18 November
