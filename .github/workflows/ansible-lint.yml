@@ -11,6 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: pipx install --include-deps ansible && pipx install ansible-lint
-      - run: ansible-galaxy collection install -r collections/requirements.yml
-      - run: ANSIBLE_CONFIG=$PWD/ansible.cfg ansible-playbook playbooks/site.yml --syntax-check
-      - run: ANSIBLE_COLLECTIONS_PATH=$HOME/.ansible/collections ansible-lint playbooks/site.yml
+      # The runner's ansible-galaxy is the preinstalled ansible-core one. It
+      # reports collections as already installed when they live outside
+      # ~/.ansible/collections. ansible-lint below looks only at that path,
+      # so install the pinned set there with --force.
+      - run: ansible-galaxy collection install --force -p "$HOME/.ansible/collections" -r collections/requirements.yml
+      - run: ANSIBLE_COLLECTIONS_PATH=$HOME/.ansible/collections ANSIBLE_CONFIG=$PWD/ansible.cfg ansible-playbook playbooks/site.yml --syntax-check
+      - run: ANSIBLE_COLLECTIONS_PATH=$HOME/.ansible/collections ANSIBLE_CONFIG=$PWD/ansible.cfg ansible-playbook -i inventories/pi/hosts.yml playbooks/berry.yml --syntax-check
+      - run: ANSIBLE_COLLECTIONS_PATH=$HOME/.ansible/collections ansible-lint playbooks/site.yml playbooks/berry.yml

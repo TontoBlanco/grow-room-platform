@@ -16,8 +16,13 @@ services:
       # uid 10001 and point AUDIT_DB_PATH at a file on that mount, for example
       # AUDIT_DB_PATH=/var/audit/audit.db with ./data:/var/audit.
       AUDIT_DB_PATH: ${AUDIT_DB_PATH:-/tmp/audit.db}
-      # Sibling Home Assistant service below. Override for HA on another host.
-      HA_URL: "${HA_URL:-http://homeassistant:8123}"
+      # Home Assistant runs on the Raspberry Pi berry (DHCP-reserved 10.0.0.62).
+      # The hostname is not the default: this container may not resolve `berry`.
+      # Override in .env. Rollback to the PC container is profile local-ha,
+      # and that URL is http://homeassistant:8123 only after you set it.
+      # Do not add depends_on: homeassistant. A depends_on on a profiled
+      # service makes `docker compose up` fail when the profile is off.
+      HA_URL: "${HA_URL:-http://10.0.0.62:8123}"
       HA_TOKEN: ${HA_TOKEN:-} # set in .env, never hardcode
       HA_DEVICE_PREFIX: ${HA_DEVICE_PREFIX:-the_garden}
       # The Garden — UIS Controller AI+ (CTR89Q) and the internal AC-SPC24 probe.
@@ -34,18 +39,25 @@ services:
       HA_PORT_DEVICES: ${HA_PORT_DEVICES:-port_1,humidifier,oscillating_fans,ventilation_fan}
     restart: unless-stopped
 
-  # Local Home Assistant sidecar for the AC Infinity UIS integration
-  # (dalinicus/homeassistant-acinfinity, installed through HACS). The
-  # controller syncs over the AC Infinity cloud account, so this container
-  # stays on the compose network and publishes 8123. sensor-service reads it
-  # at http://homeassistant:8123 with GET /api/states only.
+  # LOUD: do not start this while berry is running.
   #
-  # First run: open http://localhost:8123, finish onboarding, install HACS,
-  # add the AC Infinity integration, then create a long-lived token and put
-  # it in .env as HA_TOKEN. ha-config/ holds HA secrets — it is gitignored.
+  # Home Assistant moved to the Raspberry Pi on 18 November 2026
+  # (hostname berry, 10.0.0.62, /opt/homeassistant). Two Home Assistant
+  # processes must never run at once. Both would use the AC Infinity account.
   #
-  # Simulator only (skip this container): docker compose up sensor-service
+  # Profile local-ha keeps `docker compose up -d` from starting a second
+  # copy on the PC. This service is rollback only. Stop the Pi container
+  # first, then:
+  #   docker compose --profile local-ha up -d homeassistant
+  # and point sensor-service at it with HA_URL=http://homeassistant:8123
+  # (http://localhost:8123 from the host). ha-config/ is gitignored.
+  #
+  # sensor-service must not depend_on this service. Compose refuses to
+  # start a project when a service depends_on another service whose
+  # profile is not enabled.
   homeassistant:
+    profiles:
+      - local-ha
     image: ghcr.io/home-assistant/home-assistant:stable
     volumes:
       - ./ha-config:/config

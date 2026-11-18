@@ -26,9 +26,10 @@ The decision records:
 | [ADR-0008](../adr/0008-oidc-for-terraform-ci.md) | GitHub OIDC for Terraform |
 | [ADR-0009](../adr/0009-roles-anywhere-shipper.md) | Roles Anywhere for the home shipper |
 | [ADR-0010](../adr/0010-s3-and-athena.md) | S3 and Athena for reading history |
-| [ADR-0011](../adr/0011-k3d-instead-of-a-pi.md) | k3d on the PC instead of a Pi, for now |
+| [ADR-0011](../adr/0011-k3d-instead-of-a-pi.md) | k3d on the PC. Home Assistant on the Pi is ADR-0012 |
+| [ADR-0012](../adr/0012-home-assistant-on-the-pi.md) | Home Assistant on the Pi, k3d stays on the PC |
 
-ADR-0007 through ADR-0011 are the records I added with the documentation site. The first six were already in the repository.
+ADR-0007 through ADR-0011 are the records I added with the documentation site. The first six were already in the repository. ADR-0012 is later. It records the 18 November 2026 move of Home Assistant onto the Pi.
 
 ## Why
 

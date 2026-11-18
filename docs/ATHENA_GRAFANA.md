@@ -2,8 +2,9 @@
 
 Local Grafana is the Grafana from kube-prometheus-stack in the k3d cluster
 `grow-room-dev`, release `monitoring`, namespace `monitoring`. Docker Compose
-does not run Grafana. `docker-compose.yml` is sensor-service and Home Assistant
-only. The values file is `monitoring/values-k3d.yaml` (chart
+does not run Grafana. `docker-compose.yml` runs sensor-service.
+Home Assistant is on the Pi `berry`. The PC service is profile `local-ha`
+and does not start with a plain `docker compose up`. The values file is `monitoring/values-k3d.yaml` (chart
 `kube-prometheus-stack` `92.13.1`, Grafana `13.2.4`). The EKS app layers
 that same file; without the secret below, the credential sidecar sleeps and
 the pod still starts.

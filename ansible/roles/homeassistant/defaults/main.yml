@@ -1,0 +1,9 @@
+homeassistant_dir: /opt/homeassistant
+homeassistant_container_name: homeassistant
+homeassistant_timezone: America/Denver
+# stable is the tag already running on berry. It moves when Home Assistant
+# publishes a release. The playbook uses pull: missing, so a rerun does not
+# pull a newer stable or recreate a container that already has the image.
+# Set a dated tag to freeze the install, for example
+# ghcr.io/home-assistant/home-assistant:2026.11.1
+homeassistant_image: ghcr.io/home-assistant/home-assistant:stable

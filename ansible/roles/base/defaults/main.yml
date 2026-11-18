@@ -4,4 +4,8 @@ base_packages:
   - jq
   - htop
   - unzip
+  # Debian 13 and the Pi need an interpreter before later tasks, and the
+  # zoneinfo path has to exist before the localtime symlink.
+  - python3
+  - tzdata
 base_timezone: America/Denver

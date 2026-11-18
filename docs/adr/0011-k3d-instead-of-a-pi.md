@@ -1,6 +1,6 @@
 # ADR-0011: k3d on the PC instead of a Raspberry Pi
 
-- Status: Accepted
+- Status: Accepted for k3d on the PC. Home Assistant on the Pi is [ADR-0012](0012-home-assistant-on-the-pi.md) (2026-11-18).
 - Date: 2026-10-25
 
 ## Context
@@ -28,3 +28,7 @@ Bad / accepted risk: the Grafana tent charts follow the laptop's power state. I 
 ## SAA exam tie-in
 
 This decision is about where the workload runs, not about an AWS service. The matching cloud question is still: do not leave NAT gateways and a control plane up for a laptop-shaped lab.
+
+## Update
+
+2026-11-18: Home Assistant runs on the Raspberry Pi `berry`. k3d stays on the PC. The "no Pi" sentence in the decision above is the 25 October choice. It is no longer where Home Assistant runs. The cluster choice in this record still stands.

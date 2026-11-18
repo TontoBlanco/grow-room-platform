@@ -1,0 +1,13 @@
+[Unit]
+Description=Back up Home Assistant config on berry
+Documentation=file://{{ ha_backup_script_path }}
+
+[Service]
+Type=oneshot
+EnvironmentFile={{ ha_backup_env_path }}
+ExecStart={{ ha_backup_script_path }}
+TimeoutStartSec=30min
+Nice=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ha-backup

@@ -4,7 +4,7 @@ I kept three environments, because they fail in different ways and they cost dif
 
 | Environment | Lives where | Data source | When I use it |
 | --- | --- | --- | --- |
-| Docker Compose | The PC, next to the tent | Home Assistant | Live charts |
+| Docker Compose | The PC, next to the tent | Home Assistant on the Pi `berry` | Live charts |
 | k3d cluster `grow-room-dev` | The same PC | Simulator, plus a scrape of Compose | GitOps and dashboards |
 | EKS cluster `grow-room-poc` | `us-west-2` | Simulator | A paid session, then destroy |
 
@@ -12,11 +12,11 @@ k3d is a local Kubernetes cluster that runs inside Docker. EKS is the managed Ku
 
 ## Live path
 
-The AC Infinity AI+ does not publish an API I am willing to depend on. I installed Home Assistant in Docker, added HACS, and added the community integration `homeassistant-acinfinity`. HACS is the Home Assistant Community Store. The integration logs into the AC Infinity account and stores entities. My service only calls `GET /api/states/<entity_id>`.
+The AC Infinity AI+ does not publish an API I am willing to depend on. Home Assistant runs on the Raspberry Pi `berry` (`10.0.0.62`), with HACS and the community integration `homeassistant-acinfinity`. HACS is the Home Assistant Community Store. The integration logs into the AC Infinity account and stores entities. My service only calls `GET /api/states/<entity_id>`. On 18 November 2026 I moved that container off the PC. The PC Compose service is profile `local-ha` and does not start with `docker compose up -d`. The playbook and the rollback are in [Phase 9](phases/phase-9-pi-edge.md).
 
 ```mermaid
 flowchart LR
-  ACI["AC Infinity AI+"] --> HA["Home Assistant :8123"]
+  ACI["AC Infinity AI+"] --> HA["Home Assistant on berry :8123"]
   HA --> CS["sensor-service SENSOR_SOURCE=homeassistant :8000"]
   CS --> JOB["Prometheus job grow-room-ha-host"]
   JOB --> GRAF["Grafana uid grow-room-vpd"]
@@ -38,7 +38,7 @@ VPD is vapor pressure deficit. It is the gap between how much water the air coul
 
 The token is `HA_TOKEN` in `.env`. That file is gitignored. The Helm values for k3d do not set `SENSOR_SOURCE=homeassistant` and do not contain the token.
 
-When the laptop sleeps, Compose and k3d sleep with it. The `grow-room-ha-host` scrape stops, and the live charts go flat until the machine wakes. That is the host, not a Grafana defect. An always-on machine by the tent would keep the scrape up. I have not built that. See [ADR-0011](adr/0011-k3d-instead-of-a-pi.md).
+When the laptop sleeps, Compose and k3d sleep with it. The `grow-room-ha-host` scrape stops, and the live charts go flat until the machine wakes. That is the host, not a Grafana defect. Home Assistant stays up on the Pi. sensor-service and Prometheus are still on the PC, so the charts still follow the lid. See [ADR-0011](adr/0011-k3d-instead-of-a-pi.md) and [ADR-0012](adr/0012-home-assistant-on-the-pi.md).
 
 ## Lab path
 
@@ -113,7 +113,7 @@ Someone who can write the database can rewrite a row and recompute the hash. The
 
 ## What I left out on purpose
 
-- A Raspberry Pi beside the tent.
+- Moving k3d onto the Pi. Home Assistant is on `berry`. The cluster stays on the PC. See [ADR-0012](adr/0012-home-assistant-on-the-pi.md).
 - The Home Assistant token inside an Argo-managed pod.
 - A network policy.
 - Kyverno set to Enforce. The policy is Audit until a report shows only passes.

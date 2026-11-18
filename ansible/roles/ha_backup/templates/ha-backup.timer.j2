@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly Home Assistant config backup
+
+[Timer]
+OnCalendar={{ ha_backup_calendar }}
+Timezone={{ ha_backup_timezone }}
+Persistent=true
+Unit=ha-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,115 @@
+#!/bin/bash
+# Consistent tar.gz of the Home Assistant config on berry.
+#
+# The recorder database is snapshotted with sqlite3 .backup (SQLite's online
+# backup API) while Home Assistant keeps running. Copying home-assistant_v2.db
+# with tar alone is not consistent in WAL mode. Stopping the container would
+# be consistent and would also drop the live scrape, so the timer does not
+# stop it. The -wal and -shm files are left out of the archive. The snapshot
+# is a standalone database.
+#
+# Restore (also in docs/phases/phase-9-pi-edge.md):
+#   cd /opt/homeassistant && docker compose stop
+#   sudo mv /opt/homeassistant/config /opt/homeassistant/config.before-restore
+#   sudo mkdir -p /opt/homeassistant/config
+#   sudo tar -xzf /opt/homeassistant/backups/homeassistant-config-STAMP.tar.gz \
+#     -C /opt/homeassistant/config
+#   cd /opt/homeassistant && docker compose up -d
+# Extract into an empty directory so an old -wal file cannot sit next to the
+# snapshot. Backups stay on this machine. This script does not upload them.
+set -euo pipefail
+umask 027
+
+CONFIG_DIR=${HA_BACKUP_CONFIG:-/opt/homeassistant/config}
+DEST=${HA_BACKUP_DEST:-/opt/homeassistant/backups}
+RETENTION=${HA_BACKUP_RETENTION:-14}
+SECOND_DEST=${HA_BACKUP_SECOND_DEST:-}
+DB_NAME=home-assistant_v2.db
+
+log() {
+  printf '%s\n' "$*"
+  if [ -z "${INVOCATION_ID:-}" ]; then
+    logger -t ha-backup -- "$*" || true
+  fi
+}
+
+case "$RETENTION" in
+  ''|*[!0-9]*)
+    log "HA_BACKUP_RETENTION must be a whole number"
+    exit 1
+    ;;
+esac
+
+if [ ! -d "$CONFIG_DIR" ]; then
+  log "config directory missing: $CONFIG_DIR"
+  exit 1
+fi
+
+mkdir -p "$DEST"
+stamp=$(date +%Y%m%d-%H%M%S)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+if [ -f "$CONFIG_DIR/$DB_NAME" ]; then
+  sqlite3 "$CONFIG_DIR/$DB_NAME" ".backup '${work}/${DB_NAME}'"
+  log "snapshotted $DB_NAME"
+else
+  log "no $DB_NAME under $CONFIG_DIR; archiving the other files only"
+fi
+
+exclude=(
+  --exclude="$DB_NAME"
+  --exclude="${DB_NAME}-wal"
+  --exclude="${DB_NAME}-shm"
+)
+case "$DEST" in
+  "$CONFIG_DIR"/*)
+    exclude+=(--exclude="${DEST#"$CONFIG_DIR"/}")
+    ;;
+esac
+
+tar -C "$CONFIG_DIR" "${exclude[@]}" -cf "$work/config.tar" .
+if [ -f "$work/$DB_NAME" ]; then
+  tar -C "$work" -rf "$work/config.tar" "$DB_NAME"
+fi
+
+archive="$DEST/homeassistant-config-${stamp}.tar.gz"
+gzip -c "$work/config.tar" > "$archive"
+chmod 0640 "$archive"
+log "wrote $archive"
+
+prune() {
+  dir=$1
+  local files=()
+  local old
+  mapfile -t files < <(
+    find "$dir" -maxdepth 1 -type f -name 'homeassistant-config-*.tar.gz' -printf '%T@ %p\n' \
+      | sort -nr \
+      | awk -v keep="$RETENTION" 'NR > keep { sub(/^[^ ]* /, ""); print }'
+  )
+  for old in "${files[@]}"; do
+    [ -n "$old" ] || continue
+    rm -f -- "$old"
+    log "removed $old"
+  done
+}
+
+prune "$DEST"
+
+if [ -n "$SECOND_DEST" ]; then
+  probe=$SECOND_DEST
+  while [ ! -e "$probe" ] && [ "$probe" != "/" ]; do
+    probe=$(dirname "$probe")
+  done
+  root_src=$(findmnt -n -o SOURCE -T /)
+  dest_src=$(findmnt -n -o SOURCE -T "$probe" || true)
+  if [ -z "$dest_src" ] || [ "$dest_src" = "$root_src" ]; then
+    log "second destination $SECOND_DEST is not mounted on its own filesystem; skipping"
+  else
+    mkdir -p "$SECOND_DEST"
+    cp -a "$archive" "$SECOND_DEST/"
+    chmod 0640 "$SECOND_DEST/$(basename "$archive")"
+    log "copied archive to $SECOND_DEST"
+    prune "$SECOND_DEST"
+  fi
+fi

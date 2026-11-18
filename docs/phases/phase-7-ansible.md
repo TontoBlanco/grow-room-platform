@@ -20,7 +20,7 @@ This playbook does not install the sensor service and it does not talk to AWS.
 
 ## Why
 
-The same roles are what I would run on a small always-on machine later. Today the only host is WSL2 on the PC. Doing it here cost nothing and gave CI a syntax check. See [ADR-0011](../adr/0011-k3d-instead-of-a-pi.md).
+I wrote this playbook for WSL2. [Phase 9](phase-9-pi-edge.md) is the Pi. `k8s_tools` stays on this playbook because those binaries are amd64. Doing the WSL run first cost nothing and gave CI a syntax check. See [ADR-0011](../adr/0011-k3d-instead-of-a-pi.md) and [ADR-0012](../adr/0012-home-assistant-on-the-pi.md).
 
 ## Data flow
 

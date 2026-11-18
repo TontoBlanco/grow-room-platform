@@ -11,7 +11,7 @@ The day-to-day lab runs on my PC. A separate AWS proof of concept in `us-west-2`
 | Piece | Where it runs | What it is for |
 | --- | --- | --- |
 | AC Infinity AI+ | The tent, on Wi-Fi | Controller air, an internal probe, and the device ports |
-| Home Assistant | Docker Compose, port 8123 | Holds the controller entities. I read them. I do not call services. |
+| Home Assistant | Raspberry Pi `berry` (`10.0.0.62`), Docker, host network, port 8123 | Holds the controller entities. I read them. I do not call services. |
 | sensor-service | Docker Compose, port 8000, with `SENSOR_SOURCE=homeassistant` | Turns those entities into JSON and Prometheus metrics |
 | Prometheus job `grow-room-ha-host` | k3d cluster `grow-room-dev` | Scrapes `host.k3d.internal:8000` every 30 seconds |
 | Grafana | Same cluster, namespace `monitoring` | Dashboards **Grow-room VPD** and **grow-room SLOs** |
@@ -26,13 +26,13 @@ Prometheus is the database that scrapes and stores the numbers. Grafana is the s
 
 The live path is:
 
-**AC Infinity AI+ → Home Assistant (HACS) → Docker Compose sensor-service (`SENSOR_SOURCE=homeassistant`, port 8000) → Prometheus job `grow-room-ha-host` → Grafana.**
+**AC Infinity AI+ → Home Assistant on the Pi `berry` (HACS) → Docker Compose sensor-service (`SENSOR_SOURCE=homeassistant`, port 8000) → Prometheus job `grow-room-ha-host` → Grafana.**
 
 The lab path is a simulator inside k3d. GitHub Actions tests that path. I did not want a failed Home Assistant token to fail CI, and I did not want the token in Git.
 
 ```mermaid
 flowchart LR
-  ACI["AC Infinity AI+"] --> HA["Home Assistant :8123"]
+  ACI["AC Infinity AI+"] --> HA["Home Assistant on berry :8123"]
   HA --> CS["Compose sensor-service :8000"]
   CS --> PROM["Prometheus job grow-room-ha-host"]
   SIM["k3d simulator"] --> PROM
@@ -41,7 +41,7 @@ flowchart LR
 
 ## How the work is split
 
-I built the local project in five weeks, then a one-day AWS stack, then eight numbered phases. The numbered phases are the names I use in the later pull requests.
+I built the local project in five weeks, then a one-day AWS stack, then numbered phases. The numbered phases are the names I use in the later pull requests. Phase 9 is Home Assistant on the Pi.
 
 | Phase | What landed | Main pull requests |
 | --- | --- | --- |
@@ -59,6 +59,7 @@ I built the local project in five weeks, then a one-day AWS stack, then eight nu
 | [Phase 6](phases/phase-6-costs-and-adrs.md) | Cost record template and the first decision records | PR #58 |
 | [Phase 7](phases/phase-7-ansible.md) | Ansible for the WSL2 workstation | PR #69 |
 | [Phase 8](aws-poc/PHASE8_HA_MIGRATION.md) | Home Assistant moves with `up -WithHA` and comes home on `down`. Paid verify 7 November 2026, then the hotfixes from that run. | PR #95, #97, #99, #101, #103 |
+| [Phase 9](phases/phase-9-pi-edge.md) | Home Assistant runs on the Pi `berry`. k3d stays on the PC. The PC Compose service is profile `local-ha`. | `ansible/playbooks/berry.yml` |
 
 A service level objective is a target I chose, such as "99 percent of scrapes succeed." It is not a contract with a customer.
 
@@ -67,6 +68,8 @@ When something fails in a way I have already seen, start with [Troubleshooting](
 On 8 November I pulled `main` through `6f41afa` and ran `up -WithHA` again. I typed `no` at `Type yes to continue:`. The script printed `You did not type yes. The paid stack will not change.`, started `grow-room-platform-homeassistant-1` again, and threw `Stopped by you.` Terraform apply did not run. That is pull request [#103](https://github.com/TontoBlanco/grow-room-platform/pull/103) ("Restart home Home Assistant when the paid up prompt is declined"), merged 7 November 2026 at 10:04 PM MST, commit `6f41afa`. The record for both days is the [7 November test session](test-session/2026-11-07.md). There is no screenshot of either day in the repo.
 
 Cost Explorer UnblendedCost from the 8 November read is pasted in [COSTS.md](aws-poc/COSTS.md), commit `2774570` at 8:32 AM MST. The commands use profile `GrowRoom`, the Cost Explorer API in `us-east-1`, daily granularity, and period `Start=2026-11-06,End=2026-11-09`. They do not pass `file://ce-filter.json`. The cluster was still `us-west-2`. Cost Explorer can lag up to 24 hours. Daily totals: 2026-11-06 0.0672586299 USD, 2026-11-07 2.6880926014 USD, 2026-11-08 0.0170460668 USD. For 7 November, service groups greater than 0.01 USD: AWS Key Management Service 0.0986111119, AWS WAF 0.0315379174, EC2 - Other 0.7230693192, Amazon Elastic Compute Cloud - Compute 0.7643948866, Amazon Elastic Container Service for Kubernetes 0.318104639, Amazon Elastic Load Balancing 0.0225053118, Amazon Relational Database Service 0.1199012534, Amazon Virtual Private Cloud 0.241474528, and AmazonCloudWatch 0.36555855. The session and service tables in that file are still mostly blank. The 1 November and 3 November dollar cells are blank. The script's about 0.70 USD per hour line is a planning warning, not that read.
+
+On 18 November 2026 Home Assistant moved to the Raspberry Pi `berry`. The write-up is [Phase 9](phases/phase-9-pi-edge.md). k3d stays on the PC. `docker compose up -d` does not start a second Home Assistant.
 
 The telemetry stack stays up at about 1 USD per month. `GROW_STAGE` landed on 3 November in pull request [#77](https://github.com/TontoBlanco/grow-room-platform/pull/77). Athena in local Grafana landed in pull request [#80](https://github.com/TontoBlanco/grow-room-platform/pull/80), and the health check was fixed in pull request [#86](https://github.com/TontoBlanco/grow-room-platform/pull/86). The steps are in [Athena in Grafana](ATHENA_GRAFANA.md). The grow alerts the controller cannot see are in [Grow alerts](GROW_ALERTS.md). Each one is off until its Helm switch is turned on. What is still ahead on the [roadmap](project-management/roadmap.md) is Dependabot or Renovate. I have not started that.
 
