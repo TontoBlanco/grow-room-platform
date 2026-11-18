@@ -14,6 +14,7 @@ I keep one file per decision so I can say what I chose and what I turned down. T
 | [0008](../adr/0008-oidc-for-terraform-ci.md) | GitHub OIDC, manual apply | Accepted |
 | [0009](../adr/0009-roles-anywhere-shipper.md) | Roles Anywhere for the home shipper | Accepted |
 | [0010](../adr/0010-s3-and-athena.md) | S3, Glue, and Athena for history | Accepted |
-| [0011](../adr/0011-k3d-instead-of-a-pi.md) | k3d on the PC, not a Pi yet | Accepted |
+| [0011](../adr/0011-k3d-instead-of-a-pi.md) | k3d on the PC | Accepted for k3d. Home Assistant on the Pi is 0012 |
+| [0012](../adr/0012-home-assistant-on-the-pi.md) | Home Assistant on the Pi, k3d stays on the PC | Accepted |
 
-The first six were merged in pull request [#58](https://github.com/TontoBlanco/grow-room-platform/pull/58). The last five are the records for choices the code already made: the audit store, CI identity, the home shipper, the reading archive, and the local cluster.
+The first six were merged in pull request [#58](https://github.com/TontoBlanco/grow-room-platform/pull/58). ADR-0007 through ADR-0011 are the records for choices the code already made: the audit store, CI identity, the home shipper, the reading archive, and the local cluster. ADR-0012 is the 18 November 2026 move of Home Assistant onto the Pi. k3d stays on the PC.

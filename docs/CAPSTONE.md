@@ -72,8 +72,10 @@ repeatable application and platform testing.
 
 ```mermaid
 flowchart LR
-  subgraph edge [Docker host]
+  subgraph edge [Pi berry]
     ACI["AC Infinity AI+"] -->|Wi-Fi / cloud account| HA["Home Assistant :8123"]
+  end
+  subgraph pc [PC Compose]
     HA -->|"GET /api/states"| CS["sensor-service<br/>Home Assistant source"]
   end
   subgraph cluster [k3d grow-room-dev]
@@ -85,7 +87,7 @@ flowchart LR
   CS -->|"host scrape<br/>grow-room-ha-host"| PROM
 ```
 
-**Live path:** AC Infinity AI+ → Home Assistant → Docker Compose
+**Live path:** AC Infinity AI+ → Home Assistant on the Pi → Docker Compose
 sensor-service → Prometheus → Grafana.
 
 **Lab path:** simulator → FastAPI service on k3d → Prometheus → Grafana.
@@ -271,9 +273,9 @@ if `host.k3d.internal` fails to resolve. No Home Assistant credentials are
 stored in the Prometheus configuration.
 
 When the laptop sleeps, Docker Compose and k3d pause with it. Home Assistant
-and the Compose sensor-service stop, so the `grow-room-ha-host` scrape of
-`host.k3d.internal:8000` stops and Grow-room VPD goes flat until wake. That
-is the lab host, not a Grafana bug.
+stays up on the Pi. The Compose sensor-service stops, so the
+`grow-room-ha-host` scrape of `host.k3d.internal:8000` stops and Grow-room
+VPD goes flat until wake. That is the lab host, not a Grafana bug.
 
 This change is in [PR #25](https://github.com/TontoBlanco/grow-room-platform/pull/25).
 
@@ -538,11 +540,11 @@ session and leaves the rest open. The detail is on the
   policy is in Audit. See [Phase 5](phases/phase-5-supply-chain.md).
 - A mounted PVC for the local SQLite file. Optional local Postgres is still
   a single database process. Session RDS is destroyed with the stack.
-- A Raspberry Pi beside the tent. An always-on edge running Home Assistant
-  and sensor-service would keep `grow-room-ha-host` scraping while the laptop
-  sleeps. I have not built that. Phase 8 is the Home Assistant move between
-  the house and a short EKS session. That paid verify is done. It is not
-  this always-on machine.
+- Moving k3d onto the Pi. Home Assistant is on `berry` as of 18 November
+  2026. sensor-service stays on the PC, so `grow-room-ha-host` still stops
+  when the laptop sleeps. Phase 8 is the Home Assistant move between the
+  house and a short EKS session. That paid verify is done. The Pi write-up
+  is [Phase 9](phases/phase-9-pi-edge.md).
 - SSO, mTLS, WORM storage, external timestamps, or an independently anchored
   audit chain.
 - A security authorization, STIG assessment, or FedRAMP claim.

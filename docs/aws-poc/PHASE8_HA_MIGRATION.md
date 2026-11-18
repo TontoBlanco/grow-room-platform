@@ -2,7 +2,9 @@
 
 This page is the move between the PC and a short EKS session. It is for someone who has the repo and has not watched the tent being built.
 
-Home Assistant at home is one Docker Compose service. `docker-compose.yml` names it `homeassistant`. The image is `ghcr.io/home-assistant/home-assistant:stable`. The config folder is mounted at `/config`. It is gitignored. It holds the AC Infinity login, the long-lived token material, and `home-assistant_v2.db`.
+On 18 November 2026 the live Home Assistant moved off this Compose service and onto the Raspberry Pi `berry`. The current layout is [Phase 9](../phases/phase-9-pi-edge.md). This page still describes the script. `scripts/ha_migration.py` and `scripts/aws-poc.ps1` still look for a local Compose container and for `ha-config`. I have not pointed them at `/opt/homeassistant` on the Pi. The PC service is now profile `local-ha`, so a plain `docker compose up` does not start it. `up -WithHA` still stops whichever local container it finds.
+
+Home Assistant at home, for this script, is one Docker Compose service. `docker-compose.yml` names it `homeassistant`. The image is `ghcr.io/home-assistant/home-assistant:stable`. The config folder is mounted at `/config`. It is gitignored. It holds the AC Infinity login, the long-lived token material, and `home-assistant_v2.db`.
 
 On this PC the script runs from the Windows checkout `C:\src\grow-room-platform`, and Home Assistant runs from the WSL checkout. The container is `grow-room-platform-homeassistant-1`. Its `/config` mount is `/home/colem/src/grow-room-platform/ha-config`, which Windows sees as `\\wsl.localhost\Ubuntu\home\colem\src\grow-room-platform\ha-config`. `home-assistant_v2.db` is in that folder. A dry run that only looks at `C:\src\grow-room-platform\ha-config` reports the database missing and never reads the real one.
 

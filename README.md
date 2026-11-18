@@ -17,7 +17,9 @@ There are three places this runs. The daily lab is local. The expensive
 cluster is not.
 
 - **Local lab.** Kubernetes runs in **k3d** on my computer. The cluster uses
-  simulated readings. Live tent readings stay on Docker Compose. The Terraform
+  simulated readings. Live tent readings stay on Docker Compose on the PC,
+  which reads Home Assistant on the Raspberry Pi `berry` (`10.0.0.62`).
+  The Terraform
   root in `infra/` is validated in CI and is not applied by a workflow. Its
   defaults are `cluster_mode = "local"` and `enable_eks = false`. That root
   has no `aws_eks_cluster` resource.
@@ -28,7 +30,8 @@ cluster is not.
   is done on the code and on a paid verify. On 7 November 2026
   `up -WithHA`, `verify -WithHA` (`ALL CHECKS PASSED`), and `down` moved
   Home Assistant to EKS and back. It is not a cluster I leave running.
-  Phases 3 through 8 are done. The record is the
+  Phases 3 through 8 are done. Phase 9 is Home Assistant on the Pi.
+  The record is the
   [documentation site](docs/index.md), the
   [3 November test session](docs/test-session/2026-11-03.md), the
   [7 November test session](docs/test-session/2026-11-07.md), and the
@@ -85,16 +88,19 @@ page for each phase is on the
 
 I kept the live grow-room connection separate from the Kubernetes demo:
 
-- **Docker Compose** runs Home Assistant and a sensor-service instance that
-  reads the actual controller. It is read-only and uses a token stored outside
-  Git.
+- **Home Assistant** runs on the Raspberry Pi `berry` (`10.0.0.62`), in
+  Docker at `/opt/homeassistant`. It is not in the PC Compose project.
+  The PC service is profile `local-ha` and is rollback only.
+- **Docker Compose** on the PC runs a sensor-service instance that reads
+  the controller from the Pi. It is read-only and uses a token stored
+  outside Git.
 - **k3d** runs a second sensor-service instance using simulated data, plus
   Argo CD, Prometheus, and Grafana. It can run without my equipment, Home
   Assistant account, or AWS credentials.
 
 ```mermaid
 flowchart LR
-  ACI["AC Infinity AI+"] -->|Wi-Fi / cloud account| HA["Home Assistant :8123"]
+  ACI["AC Infinity AI+"] -->|Wi-Fi / cloud account| HA["Home Assistant on berry :8123"]
   HA -->|"GET /api/states"| CS["Compose sensor-service<br/>homeassistant :8000"]
   CS -->|"grow-room-ha-host<br/>host.k3d.internal:8000"| PROM[Prometheus]
   SIM["k3d sensor-service<br/>simulator"] -->|ServiceMonitor| PROM
@@ -105,7 +111,7 @@ flowchart LR
 
 The live data path is:
 
-**AC Infinity → Home Assistant → Compose sensor-service → Prometheus → Grafana.**
+**AC Infinity → Home Assistant on the Pi → Compose sensor-service → Prometheus → Grafana.**
 
 I also keep a [living platform map](https://cursor.com/canvas/store-6a197a3b-901d-4b50-9079-9a539befde02/debaff3b-9e35-48ab-bab0-59761b62fb09)
 with the layout, milestones, and design decisions. The diagram above is the
@@ -243,9 +249,12 @@ docker compose up --build sensor-service  # API with simulated readings
 curl localhost:8000/readings
 ```
 
-Running `docker compose up` without a service name also starts Home Assistant
-on port 8123. The sensor service is published on port 8000 so Prometheus in
-k3d can scrape it through the Docker host.
+`docker compose up -d` starts sensor-service. It does not start Home
+Assistant. That service is profile `local-ha` and is rollback only, after
+the Pi container is stopped. The sensor service is published on port 8000
+so Prometheus in k3d can scrape it through the Docker host. The Pi move,
+the playbook, and the rollback are in
+[Phase 9](docs/phases/phase-9-pi-edge.md).
 
 ### Connect the live controller
 
@@ -255,11 +264,11 @@ integration through HACS and read entities from Home Assistant. My code makes
 `GET /api/states/<entity_id>` calls only. It does **not** change controller
 settings or call Home Assistant services.
 
-1. Run `docker compose up` and finish Home Assistant setup at `http://localhost:8123`.
-2. Install [HACS](https://hacs.xyz/) and the AC Infinity integration, then connect the AC Infinity account.
+1. Home Assistant is already on `berry` at `http://10.0.0.62:8123`. The AC Infinity integration is installed there. A new Pi is the playbook in [Phase 9](docs/phases/phase-9-pi-edge.md), then onboarding on the Pi if `/opt/homeassistant/config` is empty.
+2. Install [HACS](https://hacs.xyz/) and the AC Infinity integration on that Home Assistant, then connect the AC Infinity account. Skip this when the Pi already has them.
 3. Create a long-lived access token in Home Assistant.
-4. Copy `.env.example` to `.env` and set `SENSOR_SOURCE=homeassistant`, `HA_URL=http://homeassistant:8123`, and `HA_TOKEN`.
-5. Run `docker compose up` again.
+4. Copy `.env.example` to `.env` and set `SENSOR_SOURCE=homeassistant`, `HA_URL=http://10.0.0.62:8123`, and `HA_TOKEN`.
+5. Run `docker compose up -d sensor-service`. Do not pass `--profile local-ha` while the Pi is running.
 
 The default `HA_DEVICE_PREFIX=the_garden` maps controller temperature,
 humidity, VPD and status; the internal probe; and the devices `port_1`,
@@ -539,11 +548,11 @@ extra DOWN tiles after a rollout. Tests in `tests/test_grafana_dashboard.py`
 check the queries.
 
 When the laptop sleeps, Docker Compose and k3d pause with it. Home Assistant
-and the Compose sensor-service stop, so Prometheus stops scraping
-`grow-room-ha-host` at `host.k3d.internal:8000` and Grow-room VPD goes flat
-until the machine wakes. That is the lab host, not a Grafana bug. An always-on
-Raspberry Pi running Home Assistant and sensor-service would keep that scrape
-up. I have not built that.
+stays up on the Pi. The Compose sensor-service stops, so Prometheus stops
+scraping `grow-room-ha-host` at `host.k3d.internal:8000` and Grow-room VPD
+goes flat until the machine wakes. That is the lab host, not a Grafana bug.
+Moving sensor-service onto the Pi would keep that scrape up. I have not
+done that. The Pi write-up is [Phase 9](docs/phases/phase-9-pi-edge.md).
 
 ```bash
 kubectl -n monitoring port-forward svc/monitoring-prometheus 9090:9090

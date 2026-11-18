@@ -73,7 +73,7 @@ Container path:
 docker compose up --build sensor-service
 ```
 
-That publishes port 8000. `docker compose up` with no service name also starts Home Assistant. Leave that for Week 4 if you only want the simulator.
+That publishes port 8000. `docker compose up` with no service name starts sensor-service only. Home Assistant is profile `local-ha` and stays off. Leave the live token for Week 4 if you only want the simulator.
 
 ## Cost
 

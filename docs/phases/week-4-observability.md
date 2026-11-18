@@ -44,7 +44,9 @@ flowchart LR
 
 ## Rebuild
 
-Copy the example env file and edit it outside Git. Set `SENSOR_SOURCE` to `homeassistant`, `HA_URL` to `http://homeassistant:8123`, and `HA_TOKEN` to a Home Assistant long-lived token. Leave the token out of the shell history if you can. The entity defaults in `.env.example` already match prefix `the_garden`.
+Home Assistant runs on the Raspberry Pi `berry` at `http://10.0.0.62:8123`. The PC Compose file does not start it. Copy the example env file and edit it outside Git. Set `SENSOR_SOURCE` to `homeassistant`. `HA_URL` in `.env.example` is already `http://10.0.0.62:8123`. Set `HA_TOKEN` to a long-lived token from the Pi. Leave the token out of the shell history if you can. The entity defaults in `.env.example` already match prefix `the_garden`.
+
+The playbook, the nightly backup, and the rollback to profile `local-ha` are in [Phase 9](phase-9-pi-edge.md).
 
 ```powershell
 Set-Location C:\src\grow-room-platform
@@ -54,10 +56,10 @@ Set-Location C:\src\grow-room-platform
 Copy-Item .env.example .env
 ```
 
-Start Compose, including Home Assistant. Finish onboarding at `http://127.0.0.1:8123`, install HACS, add the AC Infinity integration, create the token, put it in `.env`, and start again.
+Start sensor-service. Do not pass `--profile local-ha` while the Pi container is running.
 
 ```powershell
-docker compose up --build
+docker compose up --build sensor-service
 ```
 
 In WSL2, with the k3d cluster from Week 3 already up:
@@ -76,6 +78,6 @@ This week is local. No AWS resources. The 24 hour retention is a disk choice on 
 
 Two healthy scrapes can still make a bad dashboard. The first live panels mixed the simulator with the tent, and every old pod left a DOWN tile. The fix was labels plus `max by`, and a test so the queries do not drift.
 
-The other lesson was the laptop lid. I spent time looking for a scrape bug that was just sleep. I wrote that down next to the dashboard so I would not chase it again.
+The other lesson was the laptop lid. I spent time looking for a scrape bug that was just sleep. I wrote that down next to the dashboard so I would not chase it again. As of 18 November 2026, Home Assistant itself stays up on the Pi. The charts still go flat, because sensor-service and Prometheus are on the PC.
 
-Docker Desktop has to be running before Compose. If it is not, Home Assistant opens on the first-run screen and sensor-service gets HTTP 401. That 401 is the onboarding page, not a bad scrape query. Start the engine, then start Compose again. More cases are on the [troubleshooting page](../troubleshooting.md).
+Docker Desktop has to be running before Compose, or sensor-service does not start. A 401 from Home Assistant is a bad or missing `HA_TOKEN`, or the onboarding page on the Pi. It is not a bad scrape query. More cases are on the [troubleshooting page](../troubleshooting.md).

@@ -2,9 +2,11 @@
 
 These are the failures I actually hit. The phase pages have the rebuild steps. This page is the short list.
 
-## Docker Desktop is not running
+## sensor-service cannot reach Home Assistant
 
-Home Assistant comes up in its first-run onboarding screen, and sensor-service gets HTTP 401 from Home Assistant. Start Docker Desktop, wait until the engine answers, then start Compose again. A 401 with Docker already running is a bad or missing `HA_TOKEN`, not this case.
+Home Assistant runs on the Pi `berry` at `http://10.0.0.62:8123`. sensor-service returns HTTP 401 when `HA_TOKEN` is missing or wrong, or when the Pi is still on the first-run screen. A connection error means the Pi is down or `HA_URL` is wrong. `docker compose up -d` on the PC does not start Home Assistant. That service is profile `local-ha`.
+
+Docker Desktop still has to be running before sensor-service starts. The old PC container showed the same 401 when Docker was stopped and Home Assistant opened on the onboarding page. That container is rollback only. The steps are in [Phase 9](phases/phase-9-pi-edge.md).
 
 ## Kyverno Audit and `mutateDigest`
 

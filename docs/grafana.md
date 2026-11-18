@@ -27,7 +27,7 @@ Targets are at `http://127.0.0.1:9090/targets`. You should see job `sensor-servi
 
 A fresh Prometheus sample does not prove the physical probe took a new reading. Prometheus stamps the scrape time. The value can be unchanged.
 
-When the laptop sleeps, both jobs stop. The live panels go flat. That is expected.
+When the laptop sleeps, both jobs stop. The live panels go flat. That is expected. Home Assistant stays up on the Pi. sensor-service and Prometheus are on the PC, so the charts still follow the lid.
 
 ## Grow-room VPD
 
