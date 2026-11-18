@@ -56,7 +56,9 @@ ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" ansible-playbook --check --diff -i ans
 ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" ansible-playbook -i ansible/inventories/pi/hosts.yml ansible/playbooks/berry.yml
 ```
 
-Check mode first. It does not stop the container and it does not write into `/opt/homeassistant/config`. The real run is safe against the Pi that is already up: the config directory is only created when it is missing, and nothing under that directory is copied or deleted. The first real run rewrites `/opt/homeassistant/docker-compose.yml` to the templated file. If that changes the project Compose sees, the container is recreated. The config directory stays. A second real run should report `changed=0`.
+Those commands are run from the repo root. `ansible/ansible.cfg` sets `roles_path` to `roles:ansible/roles`, so the roles resolve from that directory and from `ansible/`. `ansible.cfg` in the repo root is what a playbook loads when `ANSIBLE_CONFIG` is unset.
+
+Check mode first. It does not stop the container and it does not write into `/opt/homeassistant/config`. The Python probe still runs during check mode. That read is how the playbook sees that the interpreter is already there. The real run is safe against the Pi that is already up: the config directory is only created when it is missing, and nothing under that directory is copied or deleted. The first real run rewrites `/opt/homeassistant/docker-compose.yml` to the templated file. If that changes the project Compose sees, the container is recreated. The config directory stays. A second real run should report `changed=0`.
 
 `ansible.cfg` sets `become_exe` to `sudo.ws` for the WSL playbook. The Pi inventory sets `ansible_become_exe` back to `sudo`.
 
