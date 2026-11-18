@@ -48,6 +48,8 @@ ansible-galaxy collection install -r ansible/collections/requirements.yml
 ansible-playbook -i ansible/inventories/local/hosts.yml ansible/playbooks/site.yml
 ```
 
+That command is from the repo root. It loads `ansible.cfg` there, which points `roles_path` at `ansible/roles`. `ansible/ansible.cfg` is for a shell already in `ansible/`, and for `ANSIBLE_CONFIG`.
+
 Run it a second time. A correct run reports `changed=0` on the second pass. That is the check I used in the pull request.
 
 Then the k3d bootstrap from Week 3 still applies. Ansible installs the tools. It does not create the cluster.

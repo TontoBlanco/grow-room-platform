@@ -18,4 +18,9 @@ jobs:
       - run: ansible-galaxy collection install --force -p "$HOME/.ansible/collections" -r collections/requirements.yml
       - run: ANSIBLE_COLLECTIONS_PATH=$HOME/.ansible/collections ANSIBLE_CONFIG=$PWD/ansible.cfg ansible-playbook playbooks/site.yml --syntax-check
       - run: ANSIBLE_COLLECTIONS_PATH=$HOME/.ansible/collections ANSIBLE_CONFIG=$PWD/ansible.cfg ansible-playbook -i inventories/pi/hosts.yml playbooks/berry.yml --syntax-check
+      - name: syntax-check from the repo root
+        working-directory: ${{ github.workspace }}
+        run: |
+          ANSIBLE_COLLECTIONS_PATH=$HOME/.ansible/collections ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" ansible-playbook --syntax-check -i ansible/inventories/pi/hosts.yml ansible/playbooks/berry.yml
+          ANSIBLE_CONFIG="$PWD/ansible.cfg" ansible-playbook --syntax-check -i ansible/inventories/local/hosts.yml ansible/playbooks/site.yml
       - run: ANSIBLE_COLLECTIONS_PATH=$HOME/.ansible/collections ansible-lint playbooks/site.yml playbooks/berry.yml

@@ -3,17 +3,22 @@
   gather_facts: false
   become: true
   pre_tasks:
+    # raw is skipped in check mode and the result has no rc. Run this
+    # read-only probe for real, and do not read rc unless it is there.
     - name: Check for Python 3
       ansible.builtin.raw: command -v python3
       register: berry_python3
       changed_when: false
       failed_when: false
+      check_mode: false
 
     - name: Install Python 3 when the Pi has no interpreter
       ansible.builtin.raw: >-
         DEBIAN_FRONTEND=noninteractive apt-get update
         && DEBIAN_FRONTEND=noninteractive apt-get install -y python3
-      when: berry_python3.rc != 0
+      when:
+        - berry_python3.rc is defined
+        - berry_python3.rc != 0
       changed_when: true
 
     - name: Gather facts

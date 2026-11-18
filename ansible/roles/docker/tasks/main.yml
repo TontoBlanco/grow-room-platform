@@ -10,9 +10,15 @@
   register: docker_compose_plugin_stat
   when: docker_client_stat.stat.exists
 
+# A skipped loop item has no stat key. selectattr on that key fails check mode
+# when Docker is absent and the loop does not run.
 - name: Record whether Docker Compose is already installed
   ansible.builtin.set_fact:
-    docker_compose_present: "{{ docker_compose_plugin_stat.results | default([]) | selectattr('stat.exists') | list | length > 0 }}"
+    docker_compose_present: >-
+      {{ docker_compose_plugin_stat.results | default([])
+         | selectattr('stat', 'defined')
+         | selectattr('stat.exists')
+         | list | length > 0 }}
 
 - name: Refuse to replace an existing Docker install that has no Compose plugin
   ansible.builtin.fail:
@@ -66,6 +72,8 @@
       ansible.builtin.set_fact:
         docker_installed_this_run: true
 
+# command is not executed in check mode, so rc is missing. This wait only
+# matters after a real install. Skip it in check mode.
 - name: Wait until the Docker daemon answers
   ansible.builtin.command:
     argv:
@@ -75,5 +83,8 @@
   changed_when: false
   retries: 10
   delay: 3
-  until: docker_info.rc == 0
-  when: docker_installed_this_run | default(false)
+  until: (docker_info.rc | default(1)) == 0
+  when:
+    - docker_installed_this_run | default(false) | bool
+    - not ansible_check_mode
+  check_mode: false
